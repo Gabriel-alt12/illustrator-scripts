@@ -9,3 +9,8 @@
 .externalNativeBuild
 .cxx
 local.properties
+
+# Firma del APK: el almacen y sus contrasenas nunca van al repositorio
+keystore.properties
+*.jks
+*.keystore

@@ -335,6 +335,14 @@ class MandoViewModel(
         }
     }
 
+    /**
+     * Guarda el ajuste del mando persistente. Mostrar o quitar la notificacion es
+     * cosa de la UI, que es quien tiene Context: aqui solo se persiste la decision.
+     */
+    fun setPersistentRemote(enabled: Boolean) {
+        viewModelScope.launch { settings.setPersistentRemote(enabled) }
+    }
+
     /** Genera una clave nueva: la TV volvera a pedir autorizacion. */
     fun repair() {
         viewModelScope.launch {

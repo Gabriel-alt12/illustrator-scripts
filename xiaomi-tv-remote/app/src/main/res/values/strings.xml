@@ -1,4 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Mando TV</string>
+    <string name="widget_description">Encendido y volumen de la TV sin abrir la app</string>
+
+    <string name="quick_power">Encendido</string>
+    <string name="quick_volume_up">Subir volumen</string>
+    <string name="quick_volume_down">Bajar volumen</string>
+    <string name="quick_mute">Silenciar</string>
+    <string name="quick_home">Inicio</string>
+
+    <string name="tile_power">Apagar TV</string>
+    <string name="tile_mute">Silenciar TV</string>
 </resources>

@@ -5,6 +5,8 @@
          sin cuentas, sin analitica. -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- Solo para el mando persistente de la barra de notificaciones (Android 13+). -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
         android:name=".TvMandoApp"
@@ -28,5 +30,48 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Ejecuta los comandos del widget, los tiles y la notificacion. No se
+             exporta: solo lo disparan PendingIntents creados por la propia app. -->
+        <receiver
+            android:name=".system.TvCommandReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.gabriel.tvmando.action.RUN" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".system.RemoteWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_remote_info" />
+        </receiver>
+
+        <service
+            android:name=".system.PowerTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_power"
+            android:label="@string/tile_power"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".system.MuteTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_volume_mute"
+            android:label="@string/tile_mute"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>

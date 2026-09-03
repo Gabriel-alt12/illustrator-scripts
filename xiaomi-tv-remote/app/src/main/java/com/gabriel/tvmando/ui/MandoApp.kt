@@ -27,6 +27,8 @@ import androidx.compose.material.icons.rounded.SettingsRemote
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -39,9 +41,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.ui.apps.AppsScreen
@@ -52,6 +58,7 @@ import com.gabriel.tvmando.ui.components.StatusBadge
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.rememberHaptics
 import com.gabriel.tvmando.ui.remote.RemoteScreen
+import com.gabriel.tvmando.system.MandoNotification
 import com.gabriel.tvmando.ui.scenes.ScenesScreen
 import com.gabriel.tvmando.ui.search.SearchScreen
 import com.gabriel.tvmando.ui.theme.Alert
@@ -83,9 +90,28 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    val askNotifications = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        // Si el usuario dice que no, el ajuste se queda apagado: no tiene sentido
+        // guardar una preferencia que el sistema no va a dejar cumplir.
+        if (granted) viewModel.setPersistentRemote(true)
+    }
+
     // Si algo falla, el movil lo dice sin que haya que mirar la pantalla.
     LaunchedEffect(state.feedback) {
         if (state.feedback?.isError == true) haptics(Tap.Reject)
+    }
+
+    // La notificacion la pone y la quita la UI, que es quien tiene Context. Al
+    // arrancar la app esto tambien la restaura tras un reinicio del movil.
+    LaunchedEffect(state.settings.persistentRemote) {
+        if (state.settings.persistentRemote) {
+            MandoNotification.show(context)
+        } else {
+            MandoNotification.hide(context)
+        }
     }
 
     Column(
@@ -225,6 +251,14 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
             host = state.settings.host,
             port = state.settings.port.toString(),
             fingerprint = state.keyFingerprint,
+            persistentRemote = state.settings.persistentRemote,
+            onPersistentRemoteChange = { enabled ->
+                when {
+                    !enabled -> viewModel.setPersistentRemote(false)
+                    MandoNotification.canPost(context) -> viewModel.setPersistentRemote(true)
+                    else -> askNotifications.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }
+            },
             onDismiss = { showSettings = false },
             onSave = { host, port ->
                 showSettings = false
@@ -321,6 +355,8 @@ private fun EndpointDialog(
     host: String,
     port: String,
     fingerprint: String,
+    persistentRemote: Boolean,
+    onPersistentRemoteChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit,
     onRepair: () -> Unit,
@@ -355,6 +391,35 @@ private fun EndpointDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Hairline),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Mando en la barra de notificaciones",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Chalk,
+                        )
+                        Text(
+                            text = "Encendido, volumen y silencio sin abrir la app.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ChalkFaint,
+                        )
+                    }
+                    Switch(
+                        checked = persistentRemote,
+                        onCheckedChange = onPersistentRemoteChange,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Ember,
+                            checkedTrackColor = InkRaised,
+                            checkedBorderColor = Ember,
+                        ),
+                    )
+                }
                 Box(
                     Modifier
                         .fillMaxWidth()

@@ -23,6 +23,13 @@ class AppContainer(context: Context) {
      */
     private val adbScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    /**
+     * El mismo alcance, expuesto para los componentes de sistema (widget, tiles,
+     * notificacion). Viven fuera de cualquier Activity y necesitan lanzar corrutinas
+     * que sobrevivan al componente que las dispara.
+     */
+    val backgroundScope: CoroutineScope get() = adbScope
+
     val settingsRepository = SettingsRepository(context.applicationContext)
 
     private val adbKeyProvider = AdbKeyProvider(settingsRepository)

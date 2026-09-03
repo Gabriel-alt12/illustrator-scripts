@@ -3,6 +3,7 @@ package com.gabriel.tvmando.data
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -19,6 +20,8 @@ data class TvSettings(
     val host: String = "",
     val port: Int = DEFAULT_PORT,
     val lastKnownModel: String? = null,
+    /** Mando siempre visible en la barra de notificaciones. */
+    val persistentRemote: Boolean = false,
 ) {
     val isConfigured: Boolean get() = host.isNotBlank()
     val endpoint: String get() = "$host:$port"
@@ -44,6 +47,7 @@ class SettingsRepository(private val context: Context) {
             host = prefs[KEY_HOST].orEmpty(),
             port = prefs[KEY_PORT] ?: TvSettings.DEFAULT_PORT,
             lastKnownModel = prefs[KEY_MODEL],
+            persistentRemote = prefs[KEY_PERSISTENT_REMOTE] ?: false,
         )
     }
 
@@ -60,6 +64,10 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { prefs ->
             if (model.isNullOrBlank()) prefs.remove(KEY_MODEL) else prefs[KEY_MODEL] = model
         }
+    }
+
+    suspend fun setPersistentRemote(enabled: Boolean) {
+        context.dataStore.edit { prefs -> prefs[KEY_PERSISTENT_REMOTE] = enabled }
     }
 
     // --- escenas -----------------------------------------------------------
@@ -143,6 +151,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_SEARCH_HISTORY = stringPreferencesKey("search_history")
         val KEY_PORT = intPreferencesKey("tv_port")
         val KEY_MODEL = stringPreferencesKey("tv_model")
+        val KEY_PERSISTENT_REMOTE = booleanPreferencesKey("persistent_remote")
         val KEY_ADB_PRIVATE = stringPreferencesKey("adb_private_key")
         val KEY_ADB_PUBLIC = stringPreferencesKey("adb_public_key")
     }

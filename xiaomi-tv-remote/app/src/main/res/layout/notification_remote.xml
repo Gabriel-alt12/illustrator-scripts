@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Tira de controles para la notificacion persistente. Lleva su propio fondo
+     oscuro para verse igual con tema claro y con tema oscuro del sistema. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:background="@drawable/widget_background"
+    android:padding="8dp"
+    android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/notification_button_1"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/widget_button_accent"
+        android:src="@drawable/ic_power"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/quick_power" />
+
+    <ImageView
+        android:id="@+id/notification_button_2"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/widget_button"
+        android:src="@drawable/ic_volume_down"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/quick_volume_down" />
+
+    <ImageView
+        android:id="@+id/notification_button_3"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/widget_button"
+        android:src="@drawable/ic_volume_mute"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/quick_mute" />
+
+    <ImageView
+        android:id="@+id/notification_button_4"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:layout_marginEnd="5dp"
+        android:background="@drawable/widget_button"
+        android:src="@drawable/ic_volume_up"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/quick_volume_up" />
+
+    <ImageView
+        android:id="@+id/notification_button_5"
+        android:layout_width="0dp"
+        android:layout_height="48dp"
+        android:layout_weight="1"
+        android:background="@drawable/widget_button"
+        android:src="@drawable/ic_home"
+        android:padding="12dp"
+        android:scaleType="fitCenter"
+        android:contentDescription="@string/quick_home" />
+</LinearLayout>

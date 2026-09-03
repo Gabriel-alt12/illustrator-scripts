@@ -4,10 +4,11 @@ App Android para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en 
 local. Kotlin + Jetpack Compose, MVVM, DataStore. Sin backend, sin cuentas, sin
 internet: todo local.
 
-**Estado: fases 2, 3 y 4 completas.** Cliente ADB funcionando, mando completo
-(D-pad, multimedia, navegación, volumen y encendido), pantalla de Apps con detección
-dinámica, búsqueda por texto con historial y motor de escenas con editor visual.
-Falta el pulido de la fase 5 (widget, tiles, notificación persistente, APK firmado).
+**Estado: fases 2 a 5 completas.** Cliente ADB propio, mando completo (D-pad,
+multimedia, navegación, volumen y encendido), pantalla de Apps con detección
+dinámica, búsqueda por texto con historial, motor de escenas con editor visual, y
+los extras de sistema: widget, tiles de ajustes rápidos, mando en la barra de
+notificaciones y firma para sideload.
 
 ---
 
@@ -23,8 +24,26 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 O abrir la carpeta `xiaomi-tv-remote/` directamente en Android Studio.
 
-Para el APK de sideload firmado (fase 5) todavía hay que añadir la configuración de
-firma; el `assembleDebug` vale de sobra para probar en tu propio móvil.
+### APK firmado para sideload
+
+Crea el almacén una sola vez y guárdalo **fuera** del repositorio:
+
+```bash
+keytool -genkey -v -keystore ~/mando-tv.jks -keyalg RSA -keysize 2048 \
+        -validity 10000 -alias mando
+```
+
+Copia `keystore.properties.example` a `keystore.properties`, rellena la ruta y las
+contraseñas, y compila:
+
+```bash
+./gradlew :app:assembleRelease
+adb install -r app/build/outputs/apk/release/app-release.apk
+```
+
+`keystore.properties`, `*.jks` y `*.keystore` están en `.gitignore`. Si el fichero
+no existe, el `assembleRelease` sale sin firmar y tendrás que firmarlo a mano con
+`apksigner`.
 
 ## Primer uso
 
@@ -42,6 +61,18 @@ firma; el `assembleDebug` vale de sobra para probar en tu propio móvil.
 8. En **Escenas** vienen las tres de fábrica (Modo cine, Modo música, Apagar todo).
    Edítalas: los paquetes de Netflix y Spotify son solo un punto de partida, usa los
    reales que te dé la pestaña de Apps.
+
+### Fuera de la app
+
+- **Widget**: mantén pulsada la pantalla de inicio → Widgets → Mando TV. Cuatro
+  botones: encendido, volumen −/+ y silencio.
+- **Tiles**: edita los ajustes rápidos y arrastra «Apagar TV» y «Silenciar TV».
+- **Notificación persistente**: actívala en Ajustes de la app. Cinco botones
+  siempre a mano; en Android 13+ te pedirá permiso de notificaciones.
+
+Los tres funcionan aunque la app esté cerrada: reabren la sesión ADB solos. Si la
+TV no responde en 8 segundos sale un aviso, porque ahí no hay pantalla donde
+enseñar un error.
 
 Solo hay que hacerlo una vez: la clave se guarda en el AndroidKeyStore.
 
@@ -104,6 +135,11 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── scenes/             ScenesScreen + SceneEditor: secuencias con retardos
 │   ├── MandoApp.kt         Cáscara: cabecera, avisos, pestañas y ajustes
 │   └── MandoViewModel.kt   Estado de las cuatro pantallas
+├── system/
+│   ├── TvCommandReceiver.kt    Punto único de entrada de widget, tiles y notificación
+│   ├── RemoteWidgetProvider.kt Widget 4x1 de la pantalla de inicio
+│   ├── QuickTileService.kt     Tiles de ajustes rápidos
+│   └── MandoNotification.kt    Mando en la barra de notificaciones
 ├── AppContainer.kt         Inyección de dependencias a mano
 └── MainActivity.kt
 ```
@@ -119,7 +155,7 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Qué está verificado y qué no
 
-**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 39 tests):
+**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 43 tests):
 
 - Handshake completo contra un `FakeAdbd` que habla el protocolo real y comprueba de
   forma independiente lo que enviamos.
@@ -138,6 +174,9 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
   progreso paso a paso y que un fallo corte la secuencia en lugar de seguir.
 - El códec de escenas: ida y vuelta de las de fábrica y de textos con comillas,
   saltos de línea y los propios separadores del formato dentro.
+- Los identificadores de `QuickCommand`, fijados en un test porque viajan dentro de
+  PendingIntents que el sistema guarda entre versiones de la app: si uno cambia de
+  nombre, los widgets ya colocados dejan de funcionar en silencio.
 
 **No verificado, pendiente de tu móvil y tu televisor:**
 
@@ -153,13 +192,26 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ---
 
-## Siguientes fases
+## Extras de la sección 9
 
-- **Fase 5** — Widget de pantalla de inicio, tiles de ajustes rápidos, notificación
-  persistente con el mando, APK firmado para sideload.
+| Extra | Estado |
+|---|---|
+| Widget con los 4 botones más usados | Hecho |
+| Tiles de ajustes rápidos | Hecho: «Apagar TV» y «Silenciar TV» |
+| Reconexión automática al abrir la app | Hecho, y también al volver de segundo plano |
+| Mando en notificación persistente | Hecho, con 5 botones |
+| Detección de la app en primer plano | Detectada y resaltada en la pestaña de Apps |
 
-También queda pendiente adaptar los controles a la app en primer plano (sección 9):
-la detección con `dumpsys` ya está, falta usarla para cambiar lo que se muestra.
+El último punto se queda ahí a propósito. La especificación pedía usar esa detección
+para **adaptar los controles mostrados**, y no está hecho: esta app se usa a oscuras
+y sin mirar la pantalla, y un mando cuyos botones cambian de sitio según lo que haya
+en la tele es exactamente lo contrario de lo que necesitas cuando alargas el pulgar
+sin apartar la vista. La detección se usa para informar, no para mover cosas.
+
+## Lo que falta
+
+- Probarlo todo en un televisor de verdad (fase 1 de la especificación).
+- Compilar: nada de esto se ha compilado nunca, ver más arriba.
 
 Limitaciones conocidas de la sección 11 que siguen en pie: solo red local;
 `KEYCODE_POWER` es un toggle y no hay forma fiable de saber si la TV está encendida;
