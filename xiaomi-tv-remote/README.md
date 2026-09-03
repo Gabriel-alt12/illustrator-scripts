@@ -72,16 +72,19 @@ no existe, el `assembleRelease` sale sin firmar y tendrás que firmarlo a mano c
 - **Notificación persistente**: actívala en Ajustes de la app. Cinco botones
   siempre a mano; en Android 13+ te pedirá permiso de notificaciones.
 - **Mando para invitados**: actívalo en Ajustes y sale una dirección tipo
-  `http://192.168.1.55:8321/3f9c1d2e`. Quien esté de visita la abre en su
-  navegador y controla la TV sin instalar nada. Solo va por la WiFi de casa y
-  mientras la app siga viva; al apagarlo la dirección deja de valer, y la
-  siguiente vez se reparte una nueva. La visita puede navegar, pausar y tocar el
-  volumen: apagar la tele no, que para eso está el dueño de la casa.
+  `http://192.168.1.55:8321/3f9c1d2e`, con un botón para copiarla. Quien esté de
+  visita la abre en su navegador y controla la TV sin instalar nada. Solo va por
+  la WiFi de casa; al apagarlo la dirección deja de valer, y la siguiente vez se
+  reparte una nueva. La visita puede navegar, pausar y tocar el volumen: apagar
+  la tele no, que para eso está quien vive aquí. Mientras está encendido sale una
+  notificación, que es lo que exige Android para dejar el servidor escuchando con
+  la pantalla apagada — y de paso recuerda que hay un mando prestado por ahí.
 
 Widget, tiles y notificación funcionan aunque la app esté cerrada: reabren la
 sesión ADB solos. Si la TV no responde en 8 segundos sale un aviso, porque ahí no
-hay pantalla donde enseñar un error. El mando de invitados es la excepción: vive
-mientras viva el proceso de la app, que es justo lo que dura una visita.
+hay pantalla donde enseñar un error. El mando de invitados es distinto: necesita
+proceso vivo, así que se sostiene con un servicio en primer plano mientras el
+interruptor esté encendido.
 
 Solo hay que hacerlo una vez: la clave se guarda en el AndroidKeyStore.
 
@@ -149,7 +152,8 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── RemoteWidgetProvider.kt Widget 4x1 de la pantalla de inicio
 │   ├── QuickTileService.kt     Tiles de ajustes rápidos
 │   ├── MandoNotification.kt    Mando en la barra de notificaciones
-│   └── GuestRemoteServer.kt    Mando web para las visitas, sin dependencias
+│   ├── GuestRemoteServer.kt    Mando web para las visitas, sin dependencias
+│   └── GuestRemoteService.kt   Lo mantiene escuchando con la pantalla apagada
 ├── AppContainer.kt         Inyección de dependencias a mano
 └── MainActivity.kt
 ```

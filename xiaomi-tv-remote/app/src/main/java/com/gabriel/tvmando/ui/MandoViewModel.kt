@@ -83,12 +83,15 @@ data class SearchUiState(
 class MandoViewModel(
     private val controller: TvController,
     private val settings: SettingsRepository,
-    private val guestServer: GuestRemoteServer,
+    guestServer: GuestRemoteServer,
 ) : ViewModel() {
 
     /**
-     * Estado del mando para invitados. Va aparte de [uiState] porque no se persiste:
-     * es un interruptor de "ahora hay gente en casa", no una preferencia.
+     * Estado del mando para invitados, solo para pintarlo. Encenderlo y apagarlo es
+     * cosa de [com.gabriel.tvmando.system.GuestRemoteService], que necesita Context.
+     *
+     * Va aparte de [uiState] porque no se persiste: es un interruptor de "ahora hay
+     * gente en casa", no una preferencia.
      */
     val guestState: StateFlow<GuestRemoteState> = guestServer.state
 
@@ -358,15 +361,6 @@ class MandoViewModel(
      */
     fun setPersistentRemote(enabled: Boolean) {
         viewModelScope.launch { settings.setPersistentRemote(enabled) }
-    }
-
-    /**
-     * Enciende o apaga el mando para invitados. No pasa por DataStore a proposito: al
-     * apagarlo, la direccion que tenga la visita deja de valer, y la siguiente vez se
-     * reparte una nueva.
-     */
-    fun setGuestRemote(enabled: Boolean) {
-        if (enabled) guestServer.start() else guestServer.stop()
     }
 
     /** Genera una clave nueva: la TV volvera a pedir autorizacion. */

@@ -12,6 +12,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
@@ -46,9 +47,11 @@ sealed interface GuestRemoteState {
  *    que pase por accidente.
  *  - **Teclas contadas** ([TvKey.GUEST]). La visita navega, sube el volumen y pausa; no
  *    apaga la tele ni la duerme. Es lo que se espera de un mando prestado.
- *  - **Vive mientras viva la app.** Corre en el alcance de la sesion ADB, asi que
- *    aguanta con la app en segundo plano, pero si Android se lleva por delante el
- *    proceso el enlace deja de responder. Para tenerlo en el salon un rato sobra.
+ *  - **Lo mantiene vivo un servicio.** El bucle corre en el alcance de la sesion ADB,
+ *    que por si solo no basta: desde Android 12 el sistema congela el proceso a los
+ *    pocos segundos de irse a segundo plano y la visita se quedaria con una pagina
+ *    muerta al bloquear el anfitrion la pantalla. De eso se encarga
+ *    [GuestRemoteService], que es quien llama a [start] y [stop].
  */
 class GuestRemoteServer(
     private val controller: TvController,
@@ -74,7 +77,9 @@ class GuestRemoteServer(
         }
 
         val opened = try {
-            ServerSocket(PORT)
+            // Atado a la IP de la WiFi y no a 0.0.0.0: si el movil tiene ademas datos
+            // moviles, el mando no tiene por que asomar tambien por ahi.
+            ServerSocket(PORT, BACKLOG, InetAddress.getByName(address))
         } catch (busy: IOException) {
             _state.value = GuestRemoteState.Failed(
                 "El puerto $PORT esta ocupado por otra app.",
@@ -114,15 +119,34 @@ class GuestRemoteServer(
                 // Cada peticion en su corrutina: un navegador lento no bloquea al resto.
                 launch { serve(client, token) }
             }
-        } catch (closed: IOException) {
-            // stop() cierra el socket y accept() salta por aqui: es la salida normal.
-        } finally {
-            runCatching { socket.close() }
-            // Si el bucle se muere por su cuenta, la pantalla no puede seguir
-            // enseñando una direccion que ya no contesta.
-            if (_state.value is GuestRemoteState.Running) {
-                _state.value = GuestRemoteState.Stopped
+        } catch (error: IOException) {
+            // stop() cierra el socket y accept() salta por aqui: esa es la salida
+            // normal. Cualquier otro fallo si hay que contarlo, porque el enlace deja
+            // de contestar y desde Ajustes no habria forma de saberlo.
+            if (!socket.isClosed) {
+                _state.value = GuestRemoteState.Failed(
+                    "El mando de invitados se ha caido: vuelve a encenderlo.",
+                )
             }
+        } finally {
+            onLoopFinished(socket)
+        }
+    }
+
+    /**
+     * Cierre ordenado del bucle. Va sincronizado y comprobando identidad porque un
+     * apagar-y-encender rapido deja dos bucles vivos un instante: sin esto, el viejo
+     * al terminar borraba el estado del nuevo y Ajustes se quedaba sin enseñar la
+     * direccion mientras el servidor seguia sirviendo.
+     */
+    @Synchronized
+    private fun onLoopFinished(socket: ServerSocket) {
+        runCatching { socket.close() }
+        if (server !== socket) return
+        server = null
+        job = null
+        if (_state.value is GuestRemoteState.Running) {
+            _state.value = GuestRemoteState.Stopped
         }
     }
 
@@ -156,8 +180,10 @@ class GuestRemoteServer(
                 if (key == null) {
                     respond(client, "400 Bad Request")
                 } else {
-                    controller.run(PressKey(key))
-                    respond(client, "204 No Content")
+                    // El resultado importa: la pagina avisa a la visita de que la TV
+                    // no responde, y con un 204 fijo ese aviso no saldria nunca.
+                    val done = controller.run(PressKey(key)).isSuccess
+                    respond(client, if (done) "204 No Content" else "502 Bad Gateway")
                 }
             }
 
@@ -220,6 +246,7 @@ class GuestRemoteServer(
 
     private companion object {
         const val PORT = 8321
+        const val BACKLOG = 50
         const val REQUEST_TIMEOUT_MS = 5_000
         const val TOKEN_BYTES = 4
         const val TOKEN_SLOT = "__TOKEN__"

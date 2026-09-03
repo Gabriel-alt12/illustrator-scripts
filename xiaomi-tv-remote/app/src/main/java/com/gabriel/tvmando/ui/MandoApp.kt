@@ -60,6 +60,7 @@ import com.gabriel.tvmando.ui.components.StatusBadge
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.rememberHaptics
 import com.gabriel.tvmando.ui.remote.RemoteScreen
+import com.gabriel.tvmando.system.GuestRemoteService
 import com.gabriel.tvmando.system.GuestRemoteState
 import com.gabriel.tvmando.system.MandoNotification
 import com.gabriel.tvmando.ui.scenes.ScenesScreen
@@ -257,7 +258,15 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
             fingerprint = state.keyFingerprint,
             persistentRemote = state.settings.persistentRemote,
             guestState = guestState,
-            onGuestRemoteChange = viewModel::setGuestRemote,
+            onGuestRemoteChange = { enabled ->
+                // Lo arranca un servicio en primer plano: si no, Android congela el
+                // proceso al bloquear la pantalla y la visita se queda sin mando.
+                if (enabled) {
+                    GuestRemoteService.start(context)
+                } else {
+                    GuestRemoteService.stop(context)
+                }
+            },
             onPersistentRemoteChange = { enabled ->
                 when {
                     !enabled -> viewModel.setPersistentRemote(false)

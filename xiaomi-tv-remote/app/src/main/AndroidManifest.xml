@@ -7,6 +7,9 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Solo para el mando persistente de la barra de notificaciones (Android 13+). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Para que el mando de invitados siga escuchando con la pantalla apagada. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
     <application
         android:name=".TvMandoApp"
@@ -51,6 +54,17 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_remote_info" />
         </receiver>
+
+        <!-- Mantiene vivo el servidor del mando de invitados. Ningun tipo con nombre
+             de Android describe esto, de ahi specialUse con su explicacion. -->
+        <service
+            android:name=".system.GuestRemoteService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Sirve un mando web en la red local de casa mientras hay visita" />
+        </service>
 
         <service
             android:name=".system.PowerTileService"
