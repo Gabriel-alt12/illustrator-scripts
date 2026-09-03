@@ -248,7 +248,7 @@ class GuestRemoteServer(
      */
     private fun explain(error: IOException): String = when (error) {
         is BindException -> "El puerto $PORT sigue ocupado. Vuelve a encenderlo."
-        else -> "No se pudo abrir el mando de invitados: ${error.message}"
+        else -> "No se pudo abrir el mando de invitados: ${error.message ?: "error de red"}"
     }
 
     /**
