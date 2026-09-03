@@ -52,6 +52,10 @@ sealed interface GuestRemoteState {
  *    pocos segundos de irse a segundo plano y la visita se quedaria con una pagina
  *    muerta al bloquear el anfitrion la pantalla. De eso se encarga
  *    [GuestRemoteService], que es quien llama a [start] y [stop].
+ *
+ * Limitacion conocida: el socket queda atado a la IP que tuviera el movil al
+ * encenderlo. Si se cambia de red con el mando puesto, deja de servir y Ajustes sigue
+ * enseñando la direccion vieja hasta que se apaga y se vuelve a encender.
  */
 class GuestRemoteServer(
     private val controller: TvController,

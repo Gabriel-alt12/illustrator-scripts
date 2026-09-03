@@ -15,6 +15,8 @@ import androidx.core.content.ContextCompat
 import com.gabriel.tvmando.MainActivity
 import com.gabriel.tvmando.R
 import com.gabriel.tvmando.TvMandoApp
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 
 /**
  * Mantiene vivo el [GuestRemoteServer] mientras hay visita.
@@ -35,9 +37,14 @@ import com.gabriel.tvmando.TvMandoApp
  */
 class GuestRemoteService : Service() {
 
+    /** Vigila que el servidor siga en pie; si se cae, este servicio se va con el. */
+    private var watcher: Job? = null
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Pase lo que pase despues, primero se cumple el contrato del servicio en
+        // primer plano: Android da unos segundos para esto y no perdona pasarse.
         ensureChannel()
         ServiceCompat.startForeground(
             this,
@@ -49,7 +56,32 @@ class GuestRemoteService : Service() {
                 0
             },
         )
-        server()?.start()
+
+        if (intent?.action == ACTION_STOP) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        val container = (application as? TvMandoApp)?.container
+        val server = container?.guestRemoteServer
+        if (server == null) {
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        server.start()
+
+        // Este servicio no tiene sentido sin servidor detras. Si no levanta (sin WiFi,
+        // puerto ocupado) o si el bucle se cae mas tarde, hay que irse: si no, queda
+        // una notificacion anunciando un mando prestado que no existe y, como el
+        // interruptor de Ajustes se dibuja a partir del estado del servidor, se veria
+        // apagado y no habria forma de pararlo salvo forzando el cierre de la app.
+        watcher?.cancel()
+        watcher = container.backgroundScope.launch {
+            server.state.collect { state ->
+                if (state !is GuestRemoteState.Running) stopSelf()
+            }
+        }
 
         // NOT_STICKY a proposito: si el sistema se lleva el servicio por delante, al
         // revivirlo se generaria una direccion nueva y la visita seguiria con la
@@ -59,7 +91,13 @@ class GuestRemoteService : Service() {
     }
 
     override fun onDestroy() {
-        server()?.stop()
+        watcher?.cancel()
+        watcher = null
+        // Solo se para lo que estuviera en marcha: en los caminos de fallo, parar aqui
+        // pondria Stopped encima del Failed y Ajustes perderia el motivo justo antes
+        // de poder enseñarlo.
+        val server = server()
+        if (server?.state?.value is GuestRemoteState.Running) server.stop()
         super.onDestroy()
     }
 
@@ -72,6 +110,8 @@ class GuestRemoteService : Service() {
             .setContentTitle("Mando para invitados encendido")
             .setContentText("La visita puede controlar la TV desde su navegador.")
             .setContentIntent(openApp())
+            // La unica salida si algo va mal y el interruptor de Ajustes no responde.
+            .addAction(0, "Apagar", stopIntent())
             .setOngoing(true)
             .setShowWhen(false)
             .setSilent(true)
@@ -93,6 +133,13 @@ class GuestRemoteService : Service() {
         getSystemService(NotificationManager::class.java)?.createNotificationChannel(channel)
     }
 
+    private fun stopIntent(): PendingIntent = PendingIntent.getService(
+        this,
+        1,
+        Intent(this, GuestRemoteService::class.java).setAction(ACTION_STOP),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
+
     private fun openApp(): PendingIntent = PendingIntent.getActivity(
         this,
         0,
@@ -105,6 +152,7 @@ class GuestRemoteService : Service() {
     companion object {
         private const val CHANNEL_ID = "mando_invitados"
         private const val NOTIFICATION_ID = 43
+        private const val ACTION_STOP = "com.gabriel.tvmando.action.STOP_GUEST"
 
         /**
          * Se llama desde la UI, que es quien tiene Context y quien sabe que el usuario
