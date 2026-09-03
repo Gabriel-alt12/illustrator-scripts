@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.io.IOException
+import java.net.BindException
 import java.net.Inet4Address
 import java.net.InetAddress
 import java.net.NetworkInterface
@@ -81,13 +82,9 @@ class GuestRemoteServer(
         }
 
         val opened = try {
-            // Atado a la IP de la WiFi y no a 0.0.0.0: si el movil tiene ademas datos
-            // moviles, el mando no tiene por que asomar tambien por ahi.
-            ServerSocket(PORT, BACKLOG, InetAddress.getByName(address))
-        } catch (busy: IOException) {
-            _state.value = GuestRemoteState.Failed(
-                "El puerto $PORT esta ocupado por otra app.",
-            )
+            openSocket(address)
+        } catch (error: IOException) {
+            _state.value = GuestRemoteState.Failed(explain(error))
             return
         }
 
@@ -223,6 +220,38 @@ class GuestRemoteServer(
     // --- utilidades --------------------------------------------------------
 
     /**
+     * Abre el socket atado a la IP de la WiFi, y no a 0.0.0.0: si el movil tiene
+     * ademas datos moviles, el mando no tiene por que asomar tambien por ahi.
+     *
+     * Reintenta un par de veces porque cerrar no libera el puerto del todo mientras
+     * quede un hilo dentro de `accept()`: un apagar-y-encender seguido se encuentra el
+     * puerto tomado por su propio socket anterior durante uno o dos milisegundos.
+     */
+    private fun openSocket(address: String): ServerSocket {
+        val bound = InetAddress.getByName(address)
+        var last: IOException? = null
+        repeat(BIND_ATTEMPTS) { attempt ->
+            try {
+                return ServerSocket(PORT, BACKLOG, bound)
+            } catch (busy: BindException) {
+                last = busy
+                if (attempt < BIND_ATTEMPTS - 1) Thread.sleep(BIND_RETRY_MS)
+            }
+        }
+        throw last ?: BindException("No se pudo abrir el puerto $PORT")
+    }
+
+    /**
+     * Todos los fallos de apertura acababan diciendo "lo tiene otra app", que manda al
+     * usuario a buscar un culpable que muchas veces no existe. Aqui cada motivo dice
+     * lo suyo.
+     */
+    private fun explain(error: IOException): String = when (error) {
+        is BindException -> "El puerto $PORT sigue ocupado. Vuelve a encenderlo."
+        else -> "No se pudo abrir el mando de invitados: ${error.message}"
+    }
+
+    /**
      * Direccion del movil en la red de casa. Se descarta loopback y se exige que sea
      * privada (192.168.x.x y compania): si el movil solo tiene datos moviles no hay
      * nada que ofrecer y mas vale decirlo que levantar un servidor inalcanzable.
@@ -251,6 +280,8 @@ class GuestRemoteServer(
     private companion object {
         const val PORT = 8321
         const val BACKLOG = 50
+        const val BIND_ATTEMPTS = 3
+        const val BIND_RETRY_MS = 30L
         const val REQUEST_TIMEOUT_MS = 5_000
         const val TOKEN_BYTES = 4
         const val TOKEN_SLOT = "__TOKEN__"
