@@ -23,6 +23,8 @@ import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.domain.TvCommand
 import com.gabriel.tvmando.domain.TvController
 import com.gabriel.tvmando.domain.TvQuery
+import com.gabriel.tvmando.system.GuestRemoteServer
+import com.gabriel.tvmando.system.GuestRemoteState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -81,7 +83,14 @@ data class SearchUiState(
 class MandoViewModel(
     private val controller: TvController,
     private val settings: SettingsRepository,
+    private val guestServer: GuestRemoteServer,
 ) : ViewModel() {
+
+    /**
+     * Estado del mando para invitados. Va aparte de [uiState] porque no se persiste:
+     * es un interruptor de "ahora hay gente en casa", no una preferencia.
+     */
+    val guestState: StateFlow<GuestRemoteState> = guestServer.state
 
     private val feedback = MutableStateFlow<Feedback?>(null)
     private val sending = MutableStateFlow(false)
@@ -351,6 +360,15 @@ class MandoViewModel(
         viewModelScope.launch { settings.setPersistentRemote(enabled) }
     }
 
+    /**
+     * Enciende o apaga el mando para invitados. No pasa por DataStore a proposito: al
+     * apagarlo, la direccion que tenga la visita deja de valer, y la siguiente vez se
+     * reparte una nueva.
+     */
+    fun setGuestRemote(enabled: Boolean) {
+        if (enabled) guestServer.start() else guestServer.stop()
+    }
+
     /** Genera una clave nueva: la TV volvera a pedir autorizacion. */
     fun repair() {
         viewModelScope.launch {
@@ -363,7 +381,13 @@ class MandoViewModel(
         private const val SEARCH_SCENE_ID = "busqueda"
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
-            initializer { MandoViewModel(container.tvController, container.settingsRepository) }
+            initializer {
+                MandoViewModel(
+                    controller = container.tvController,
+                    settings = container.settingsRepository,
+                    guestServer = container.guestRemoteServer,
+                )
+            }
         }
     }
 }

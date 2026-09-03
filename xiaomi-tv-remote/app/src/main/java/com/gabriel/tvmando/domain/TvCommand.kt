@@ -46,6 +46,37 @@ enum class TvKey(val keycode: String, val label: String) {
 
     ENTER("KEYCODE_ENTER", "Aceptar"),
     DEL("KEYCODE_DEL", "Borrar"),
+
+    ;
+
+    companion object {
+        /**
+         * Lo que se le presta a una visita desde el mando del navegador.
+         *
+         * Fuera quedan POWER, SLEEP y WAKEUP a proposito: apagar la tele de la casa no
+         * es cosa de quien esta de paso, y asi una pestaña olvidada en el movil de
+         * alguien tampoco puede hacerlo sin querer. Navegar, pausar y tocar el volumen
+         * es justo lo que se espera de un mando prestado.
+         *
+         * Vive aqui y no en el servidor porque es una decision sobre lo que la app
+         * deja hacer, no sobre como viaja: asi se puede probar sin levantar un socket.
+         */
+        val GUEST: List<TvKey> = listOf(
+            DPAD_UP,
+            DPAD_DOWN,
+            DPAD_LEFT,
+            DPAD_RIGHT,
+            DPAD_CENTER,
+            BACK,
+            HOME,
+            VOLUME_DOWN,
+            VOLUME_MUTE,
+            VOLUME_UP,
+            MEDIA_PLAY_PAUSE,
+            MEDIA_PREVIOUS,
+            MEDIA_NEXT,
+        )
+    }
 }
 
 /** Pulsacion de una tecla del mando. */

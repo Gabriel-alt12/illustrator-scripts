@@ -8,7 +8,7 @@ internet: todo local.
 multimedia, navegación, volumen y encendido), pantalla de Apps con detección
 dinámica, búsqueda por texto con historial, motor de escenas con editor visual, y
 los extras de sistema: widget, tiles de ajustes rápidos, mando en la barra de
-notificaciones y firma para sideload.
+notificaciones, mando web para las visitas y firma para sideload.
 
 ---
 
@@ -58,9 +58,11 @@ no existe, el `assembleRelease` sale sin firmar y tendrás que firmarlo a mano c
    forzar el cierre. La app que esté en pantalla aparece resaltada en naranja.
 7. En **Buscar** eliges dónde escribir y usas el teclado del móvil: la app manda
    `input text` y luego ENTER.
-8. En **Escenas** vienen las tres de fábrica (Modo cine, Modo música, Apagar todo).
-   Edítalas: los paquetes de Netflix y Spotify son solo un punto de partida, usa los
-   reales que te dé la pestaña de Apps.
+8. En **Escenas** vienen seis de fábrica: las tres de la especificación (Modo cine,
+   Modo música, Apagar todo) y tres más pensadas para un salón con gente que entra
+   y sale (Silencio ya, Llega visita, Música de fondo). Edítalas: los paquetes de
+   Netflix y Spotify son solo un punto de partida, usa los reales que te dé la
+   pestaña de Apps.
 
 ### Fuera de la app
 
@@ -69,10 +71,17 @@ no existe, el `assembleRelease` sale sin firmar y tendrás que firmarlo a mano c
 - **Tiles**: edita los ajustes rápidos y arrastra «Apagar TV» y «Silenciar TV».
 - **Notificación persistente**: actívala en Ajustes de la app. Cinco botones
   siempre a mano; en Android 13+ te pedirá permiso de notificaciones.
+- **Mando para invitados**: actívalo en Ajustes y sale una dirección tipo
+  `http://192.168.1.55:8321/3f9c1d2e`. Quien esté de visita la abre en su
+  navegador y controla la TV sin instalar nada. Solo va por la WiFi de casa y
+  mientras la app siga viva; al apagarlo la dirección deja de valer, y la
+  siguiente vez se reparte una nueva. La visita puede navegar, pausar y tocar el
+  volumen: apagar la tele no, que para eso está el dueño de la casa.
 
-Los tres funcionan aunque la app esté cerrada: reabren la sesión ADB solos. Si la
-TV no responde en 8 segundos sale un aviso, porque ahí no hay pantalla donde
-enseñar un error.
+Widget, tiles y notificación funcionan aunque la app esté cerrada: reabren la
+sesión ADB solos. Si la TV no responde en 8 segundos sale un aviso, porque ahí no
+hay pantalla donde enseñar un error. El mando de invitados es la excepción: vive
+mientras viva el proceso de la app, que es justo lo que dura una visita.
 
 Solo hay que hacerlo una vez: la clave se guarda en el AndroidKeyStore.
 
@@ -139,7 +148,8 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── TvCommandReceiver.kt    Punto único de entrada de widget, tiles y notificación
 │   ├── RemoteWidgetProvider.kt Widget 4x1 de la pantalla de inicio
 │   ├── QuickTileService.kt     Tiles de ajustes rápidos
-│   └── MandoNotification.kt    Mando en la barra de notificaciones
+│   ├── MandoNotification.kt    Mando en la barra de notificaciones
+│   └── GuestRemoteServer.kt    Mando web para las visitas, sin dependencias
 ├── AppContainer.kt         Inyección de dependencias a mano
 └── MainActivity.kt
 ```
@@ -155,7 +165,7 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Qué está verificado y qué no
 
-**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 43 tests):
+**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 55 tests):
 
 - Handshake completo contra un `FakeAdbd` que habla el protocolo real y comprueba de
   forma independiente lo que enviamos.
@@ -178,6 +188,8 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
   progreso paso a paso y que un fallo corte la secuencia en lugar de seguir.
 - El códec de escenas: ida y vuelta de las de fábrica y de textos con comillas,
   saltos de línea y los propios separadores del formato dentro.
+- Que el mando de invitados solo resuelve las teclas de su lista blanca, y que lo
+  que llega por la URL no puede colarse dentro de la línea que ejecuta la TV.
 - Los identificadores de `QuickCommand`, fijados en un test porque viajan dentro de
   PendingIntents que el sistema guarda entre versiones de la app: si uno cambia de
   nombre, los widgets ya colocados dejan de funcionar en silencio.

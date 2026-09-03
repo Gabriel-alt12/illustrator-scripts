@@ -41,7 +41,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,6 +60,7 @@ import com.gabriel.tvmando.ui.components.StatusBadge
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.rememberHaptics
 import com.gabriel.tvmando.ui.remote.RemoteScreen
+import com.gabriel.tvmando.system.GuestRemoteState
 import com.gabriel.tvmando.system.MandoNotification
 import com.gabriel.tvmando.ui.scenes.ScenesScreen
 import com.gabriel.tvmando.ui.search.SearchScreen
@@ -85,6 +88,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     val appsState by viewModel.appsState.collectAsStateWithLifecycle()
     val scenesState by viewModel.scenesState.collectAsStateWithLifecycle()
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
+    val guestState by viewModel.guestState.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
 
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
@@ -252,6 +256,8 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
             port = state.settings.port.toString(),
             fingerprint = state.keyFingerprint,
             persistentRemote = state.settings.persistentRemote,
+            guestState = guestState,
+            onGuestRemoteChange = viewModel::setGuestRemote,
             onPersistentRemoteChange = { enabled ->
                 when {
                     !enabled -> viewModel.setPersistentRemote(false)
@@ -357,12 +363,15 @@ private fun EndpointDialog(
     fingerprint: String,
     persistentRemote: Boolean,
     onPersistentRemoteChange: (Boolean) -> Unit,
+    guestState: GuestRemoteState,
+    onGuestRemoteChange: (Boolean) -> Unit,
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit,
     onRepair: () -> Unit,
 ) {
     var hostField by rememberSaveable(host) { mutableStateOf(host) }
     var portField by rememberSaveable(port) { mutableStateOf(port) }
+    val clipboard = LocalClipboardManager.current
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -419,6 +428,66 @@ private fun EndpointDialog(
                             checkedBorderColor = Ember,
                         ),
                     )
+                }
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Hairline),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            text = "Mando para invitados",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Chalk,
+                        )
+                        Text(
+                            text = "Una direccion para quien este de visita: controla la TV " +
+                                "desde su navegador, sin instalar nada.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ChalkFaint,
+                        )
+                    }
+                    Switch(
+                        checked = guestState is GuestRemoteState.Running,
+                        onCheckedChange = onGuestRemoteChange,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = Ember,
+                            checkedTrackColor = InkRaised,
+                            checkedBorderColor = Ember,
+                        ),
+                    )
+                }
+                when (guestState) {
+                    is GuestRemoteState.Running -> {
+                        val url = guestState.url
+                        Text(
+                            text = url,
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = Ember,
+                        )
+                        Text(
+                            text = "Solo funciona en la WiFi de casa y mientras la app siga " +
+                                "abierta. Al apagarlo, la direccion deja de valer.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = ChalkFaint,
+                        )
+                        TextButton(
+                            onClick = { clipboard.setText(AnnotatedString(url)) },
+                            contentPadding = PaddingValues(0.dp),
+                        ) {
+                            Text("Copiar enlace", color = Ember)
+                        }
+                    }
+
+                    is GuestRemoteState.Failed -> Text(
+                        text = guestState.message,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Alert,
+                    )
+
+                    GuestRemoteState.Stopped -> Unit
                 }
                 Box(
                     Modifier

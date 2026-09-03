@@ -4,6 +4,7 @@ import android.content.Context
 import com.gabriel.tvmando.data.AdbKeyProvider
 import com.gabriel.tvmando.data.SettingsRepository
 import com.gabriel.tvmando.domain.TvController
+import com.gabriel.tvmando.system.GuestRemoteServer
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -37,6 +38,15 @@ class AppContainer(context: Context) {
     val tvController = TvController(
         settings = settingsRepository,
         keys = adbKeyProvider,
+        scope = adbScope,
+    )
+
+    /**
+     * Vive en el mismo alcance que la sesion ADB para que el mando de la visita no se
+     * caiga al cerrar la pantalla de ajustes desde la que se enciende.
+     */
+    val guestRemoteServer = GuestRemoteServer(
+        controller = tvController,
         scope = adbScope,
     )
 }
