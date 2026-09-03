@@ -4,9 +4,10 @@ App Android para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en 
 local. Kotlin + Jetpack Compose, MVVM, DataStore. Sin backend, sin cuentas, sin
 internet: todo local.
 
-**Estado: fases 2 y 3 completas.** Cliente ADB funcionando, mando completo (D-pad,
-multimedia, navegación, volumen y encendido) y pantalla de Apps con detección
-dinámica de paquetes. Faltan búsqueda y escenas (fase 4) y el pulido (fase 5).
+**Estado: fases 2, 3 y 4 completas.** Cliente ADB funcionando, mando completo
+(D-pad, multimedia, navegación, volumen y encendido), pantalla de Apps con detección
+dinámica, búsqueda por texto con historial y motor de escenas con editor visual.
+Falta el pulido de la fase 5 (widget, tiles, notificación persistente, APK firmado).
 
 ---
 
@@ -36,6 +37,11 @@ firma; el `assembleDebug` vale de sobra para probar en tu propio móvil.
 5. El indicador de arriba a la izquierda se pone verde.
 6. La pestaña **Apps** se rellena sola al conectar. Toque = abrir, pulsación larga =
    forzar el cierre. La app que esté en pantalla aparece resaltada en naranja.
+7. En **Buscar** eliges dónde escribir y usas el teclado del móvil: la app manda
+   `input text` y luego ENTER.
+8. En **Escenas** vienen las tres de fábrica (Modo cine, Modo música, Apagar todo).
+   Edítalas: los paquetes de Netflix y Spotify son solo un punto de partida, usa los
+   reales que te dé la pestaña de Apps.
 
 Solo hay que hacerlo una vez: la clave se guarda en el AndroidKeyStore.
 
@@ -85,6 +91,8 @@ app/src/main/java/com/gabriel/tvmando/
 ├── domain/
 │   ├── TvCommand.kt        Catálogo completo de la sección 5
 │   ├── TvApp.kt            Catálogo de apps y parseo de pm list / dumpsys
+│   ├── Scene.kt            Modelo de escena, escenas de fábrica y códec
+│   ├── SceneRunner.kt      Motor de secuencias, sin dependencias de Android
 │   ├── ConnectionState.kt
 │   └── TvController.kt     Sesión viva, reconexión, serialización de comandos
 ├── ui/
@@ -92,8 +100,10 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── components/         D-pad, botones grandes, hápticos, fichas de app
 │   ├── remote/             RemoteScreen: mando completo
 │   ├── apps/               AppsScreen: rejilla con detección dinámica
+│   ├── search/             SearchScreen: teclado remoto con historial
+│   ├── scenes/             ScenesScreen + SceneEditor: secuencias con retardos
 │   ├── MandoApp.kt         Cáscara: cabecera, avisos, pestañas y ajustes
-│   └── MandoViewModel.kt   Estado de la cáscara y de la pantalla de Apps
+│   └── MandoViewModel.kt   Estado de las cuatro pantallas
 ├── AppContainer.kt         Inyección de dependencias a mano
 └── MainActivity.kt
 ```
@@ -109,7 +119,7 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Qué está verificado y qué no
 
-**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 25 tests):
+**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 39 tests):
 
 - Handshake completo contra un `FakeAdbd` que habla el protocolo real y comprueba de
   forma independiente lo que enviamos.
@@ -124,6 +134,10 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 - Las líneas de shell que genera cada `TvCommand`, incluido el entrecomillado.
 - El parseo de `pm list packages -3` (con y sin `-f`, con retornos de carro, con
   duplicados y con líneas de error de por medio) y el de `mResumedActivity`.
+- El motor de escenas con esperas falsas: orden de los comandos, retardos exactos,
+  progreso paso a paso y que un fallo corte la secuencia en lugar de seguir.
+- El códec de escenas: ida y vuelta de las de fábrica y de textos con comillas,
+  saltos de línea y los propios separadores del formato dentro.
 
 **No verificado, pendiente de tu móvil y tu televisor:**
 
@@ -141,10 +155,11 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Siguientes fases
 
-- **Fase 4** — Motor de escenas (secuencias con retardos), editor visual y envío de
-  texto con historial.
-- **Fase 5** — Widget, tiles de ajustes rápidos, notificación persistente, APK
-  firmado.
+- **Fase 5** — Widget de pantalla de inicio, tiles de ajustes rápidos, notificación
+  persistente con el mando, APK firmado para sideload.
+
+También queda pendiente adaptar los controles a la app en primer plano (sección 9):
+la detección con `dumpsys` ya está, falta usarla para cambiar lo que se muestra.
 
 Limitaciones conocidas de la sección 11 que siguen en pie: solo red local;
 `KEYCODE_POWER` es un toggle y no hay forma fiable de saber si la TV está encendida;

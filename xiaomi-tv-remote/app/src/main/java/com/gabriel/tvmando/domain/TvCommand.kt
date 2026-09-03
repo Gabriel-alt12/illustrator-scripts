@@ -89,6 +89,19 @@ data class SetBrightness(val value: Int) : TvCommand {
     override val label: String get() = "Brillo $value"
 }
 
+/**
+ * Fija el volumen absoluto del canal multimedia.
+ *
+ * `media volume` no esta en todas las builds de Google TV. Si tu TV lo ignora,
+ * sustituye el paso de la escena por varias pulsaciones de volumen: eso siempre
+ * funciona, solo que a ciegas.
+ */
+data class SetVolume(val level: Int) : TvCommand {
+    override val shell: String
+        get() = "media volume --stream 3 --set ${level.coerceIn(0, 100)}"
+    override val label: String get() = "Volumen ${level.coerceIn(0, 100)}"
+}
+
 /** Consultas de diagnostico, sin efectos secundarios. */
 enum class TvQuery(override val shell: String, override val label: String) : TvCommand {
     MODEL("getprop ro.product.model", "Modelo"),

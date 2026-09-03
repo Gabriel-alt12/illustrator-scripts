@@ -19,7 +19,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsRemote
 import androidx.compose.material3.AlertDialog
@@ -50,6 +52,8 @@ import com.gabriel.tvmando.ui.components.StatusBadge
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.rememberHaptics
 import com.gabriel.tvmando.ui.remote.RemoteScreen
+import com.gabriel.tvmando.ui.scenes.ScenesScreen
+import com.gabriel.tvmando.ui.search.SearchScreen
 import com.gabriel.tvmando.ui.theme.Alert
 import com.gabriel.tvmando.ui.theme.Chalk
 import com.gabriel.tvmando.ui.theme.ChalkFaint
@@ -72,6 +76,8 @@ import com.gabriel.tvmando.ui.theme.Waiting
 fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val appsState by viewModel.appsState.collectAsStateWithLifecycle()
+    val scenesState by viewModel.scenesState.collectAsStateWithLifecycle()
+    val searchState by viewModel.searchState.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
 
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
@@ -136,6 +142,28 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     onForceStop = viewModel::forceStopApp,
                     haptics = haptics,
                 )
+
+                Destination.SEARCH -> SearchScreen(
+                    state = searchState,
+                    apps = appsState.apps,
+                    enabled = state.controlsEnabled,
+                    onTargetChange = viewModel::setSearchTarget,
+                    onSearch = viewModel::search,
+                    onClearHistory = viewModel::clearSearchHistory,
+                    haptics = haptics,
+                )
+
+                Destination.SCENES -> ScenesScreen(
+                    state = scenesState,
+                    apps = appsState.apps,
+                    enabled = state.controlsEnabled,
+                    onRun = viewModel::runScene,
+                    onCancel = viewModel::cancelScene,
+                    onSave = viewModel::saveScene,
+                    onDelete = viewModel::deleteScene,
+                    onRestoreDefaults = viewModel::restoreDefaultScenes,
+                    haptics = haptics,
+                )
             }
         }
 
@@ -169,6 +197,24 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                 onClick = {
                     haptics(Tap.Press)
                     destination = Destination.APPS
+                },
+            )
+            NavBarItem(
+                selected = destination == Destination.SEARCH,
+                label = Destination.SEARCH.label,
+                icon = Icons.Rounded.Search,
+                onClick = {
+                    haptics(Tap.Press)
+                    destination = Destination.SEARCH
+                },
+            )
+            NavBarItem(
+                selected = destination == Destination.SCENES,
+                label = Destination.SCENES.label,
+                icon = Icons.Rounded.PlaylistPlay,
+                onClick = {
+                    haptics(Tap.Press)
+                    destination = Destination.SCENES
                 },
             )
         }
