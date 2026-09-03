@@ -1,0 +1,219 @@
+package com.gabriel.tvmando.ui
+
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.initializer
+import androidx.lifecycle.viewmodel.viewModelFactory
+import com.gabriel.tvmando.AppContainer
+import com.gabriel.tvmando.data.SettingsRepository
+import com.gabriel.tvmando.data.TvSettings
+import com.gabriel.tvmando.domain.AppCatalog
+import com.gabriel.tvmando.domain.ConnectionState
+import com.gabriel.tvmando.domain.ForceStopApp
+import com.gabriel.tvmando.domain.LaunchApp
+import com.gabriel.tvmando.domain.TvApp
+import com.gabriel.tvmando.domain.TvCommand
+import com.gabriel.tvmando.domain.TvController
+import com.gabriel.tvmando.domain.TvQuery
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
+
+/** Pantallas de la app. La fase 4 anadira busqueda y escenas. */
+enum class Destination(val label: String) {
+    REMOTE("Mando"),
+    APPS("Apps"),
+}
+
+/** Ultimo resultado mostrado bajo los controles. */
+data class Feedback(val text: String, val isError: Boolean)
+
+/** Estado de la cascara: lo que se ve en todas las pantallas. */
+data class MandoUiState(
+    val connection: ConnectionState = ConnectionState.Disconnected,
+    val settings: TvSettings = TvSettings(),
+    val feedback: Feedback? = null,
+    val isSending: Boolean = false,
+    val keyFingerprint: String = "",
+) {
+    /** Los controles siguen activos sin sesion: pulsar reconecta. */
+    val controlsEnabled: Boolean get() = settings.isConfigured && !connection.isBusy
+}
+
+/** Estado de la pantalla de Apps. */
+data class AppsUiState(
+    val apps: List<TvApp> = emptyList(),
+    val foregroundPackage: String? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null,
+) {
+    val hasLoaded: Boolean get() = apps.isNotEmpty()
+}
+
+class MandoViewModel(
+    private val controller: TvController,
+    private val settings: SettingsRepository,
+) : ViewModel() {
+
+    private val feedback = MutableStateFlow<Feedback?>(null)
+    private val sending = MutableStateFlow(false)
+    private val fingerprint = MutableStateFlow("")
+
+    private val _appsState = MutableStateFlow(AppsUiState())
+    val appsState: StateFlow<AppsUiState> = _appsState.asStateFlow()
+
+    val uiState: StateFlow<MandoUiState> = combine(
+        controller.state,
+        settings.settings,
+        feedback,
+        sending,
+        fingerprint,
+    ) { connection, config, message, isSending, print ->
+        MandoUiState(
+            connection = connection,
+            settings = config,
+            feedback = message,
+            isSending = isSending,
+            keyFingerprint = print,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), MandoUiState())
+
+    init {
+        viewModelScope.launch {
+            fingerprint.value = runCatching { controller.keyFingerprint() }.getOrDefault("")
+            // Reconexion automatica al abrir la app, si ya sabemos donde esta la TV.
+            if (settings.current().isConfigured) controller.connect()
+        }
+    }
+
+    // --- mando -------------------------------------------------------------
+
+    fun send(command: TvCommand) {
+        viewModelScope.launch {
+            sending.value = true
+            val result = controller.run(command)
+            sending.value = false
+            feedback.value = result.fold(
+                onSuccess = { output -> Feedback(output.ifBlank { command.label }, isError = false) },
+                onFailure = { error -> Feedback(error.message ?: "No se pudo enviar", isError = true) },
+            )
+        }
+    }
+
+    fun reconnect() {
+        viewModelScope.launch {
+            controller.connect().onFailure {
+                feedback.value = Feedback(it.message ?: "No se pudo conectar", isError = true)
+            }
+        }
+    }
+
+    /** Se llama al volver a primer plano: si la sesion murio, el indicador lo dice. */
+    fun refreshLiveness() {
+        viewModelScope.launch { controller.refreshLiveness() }
+    }
+
+    // --- apps --------------------------------------------------------------
+
+    /**
+     * Descubre las apps instaladas en la TV. Nada de paquetes escritos a fuego: la
+     * seccion 11 avisa de que cambian entre versiones y regiones.
+     */
+    fun loadApps(force: Boolean = false) {
+        if (!force && (_appsState.value.isLoading || _appsState.value.hasLoaded)) return
+        viewModelScope.launch {
+            _appsState.value = _appsState.value.copy(isLoading = true, error = null)
+            val result = controller.run(TvQuery.THIRD_PARTY_PACKAGES)
+            _appsState.value = result.fold(
+                onSuccess = { output ->
+                    val apps = AppCatalog.parseInstalledPackages(output)
+                    _appsState.value.copy(
+                        apps = apps,
+                        isLoading = false,
+                        error = if (apps.isEmpty()) "La TV no devolvio ninguna app" else null,
+                    )
+                },
+                onFailure = { error ->
+                    _appsState.value.copy(
+                        isLoading = false,
+                        error = error.message ?: "No se pudo leer la lista de apps",
+                    )
+                },
+            )
+            refreshForegroundApp()
+        }
+    }
+
+    /** Detecta que app esta en primer plano para resaltarla en la rejilla. */
+    fun refreshForegroundApp() {
+        viewModelScope.launch {
+            controller.run(TvQuery.CURRENT_ACTIVITY).onSuccess { output ->
+                _appsState.value = _appsState.value.copy(
+                    foregroundPackage = AppCatalog.parseForegroundPackage(output),
+                )
+            }
+        }
+    }
+
+    fun launchApp(app: TvApp) {
+        viewModelScope.launch {
+            sending.value = true
+            val result = controller.run(LaunchApp(app.packageName))
+            sending.value = false
+            feedback.value = result.fold(
+                // monkey escupe estadisticas por stdout aunque haya ido bien.
+                onSuccess = { Feedback("Abriendo ${app.displayName}", isError = false) },
+                onFailure = { Feedback(it.message ?: "No se pudo abrir", isError = true) },
+            )
+            refreshForegroundApp()
+        }
+    }
+
+    fun forceStopApp(app: TvApp) {
+        viewModelScope.launch {
+            val result = controller.run(ForceStopApp(app.packageName))
+            feedback.value = result.fold(
+                onSuccess = { Feedback("${app.displayName} cerrada", isError = false) },
+                onFailure = { Feedback(it.message ?: "No se pudo cerrar", isError = true) },
+            )
+            refreshForegroundApp()
+        }
+    }
+
+    // --- ajustes -----------------------------------------------------------
+
+    fun saveEndpoint(host: String, port: String) {
+        viewModelScope.launch {
+            val parsedPort = port.trim().toIntOrNull()
+            if (host.isBlank() || parsedPort == null || parsedPort !in 1..65535) {
+                feedback.value = Feedback("IP o puerto no validos", isError = true)
+                return@launch
+            }
+            settings.setEndpoint(host, parsedPort)
+            controller.disconnect()
+            _appsState.value = AppsUiState()
+            controller.connect().onFailure {
+                feedback.value = Feedback(it.message ?: "No se pudo conectar", isError = true)
+            }
+        }
+    }
+
+    /** Genera una clave nueva: la TV volvera a pedir autorizacion. */
+    fun repair() {
+        viewModelScope.launch {
+            controller.repair()
+            fingerprint.value = runCatching { controller.keyFingerprint() }.getOrDefault("")
+        }
+    }
+
+    companion object {
+        fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
+            initializer { MandoViewModel(container.tvController, container.settingsRepository) }
+        }
+    }
+}

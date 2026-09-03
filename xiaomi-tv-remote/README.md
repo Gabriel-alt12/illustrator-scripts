@@ -4,9 +4,9 @@ App Android para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en 
 local. Kotlin + Jetpack Compose, MVVM, DataStore. Sin backend, sin cuentas, sin
 internet: todo local.
 
-**Estado: fase 2 completa.** Una pantalla, cliente ADB funcionando y tres botones
-(encendido, volumen + y volumen −) validando el circuito de punta a punta. La
-estructura ya está montada para las pantallas de la sección 7 de la especificación.
+**Estado: fases 2 y 3 completas.** Cliente ADB funcionando, mando completo (D-pad,
+multimedia, navegación, volumen y encendido) y pantalla de Apps con detección
+dinámica de paquetes. Faltan búsqueda y escenas (fase 4) y el pulido (fase 5).
 
 ---
 
@@ -34,6 +34,8 @@ firma; el `assembleDebug` vale de sobra para probar en tu propio móvil.
    huella. Compárala con la que muestra la app en Ajustes, marca «Permitir siempre» y
    acepta.
 5. El indicador de arriba a la izquierda se pone verde.
+6. La pestaña **Apps** se rellena sola al conectar. Toque = abrir, pulsación larga =
+   forzar el cierre. La app que esté en pantalla aparece resaltada en naranja.
 
 Solo hay que hacerlo una vez: la clave se guarda en el AndroidKeyStore.
 
@@ -82,12 +84,16 @@ app/src/main/java/com/gabriel/tvmando/
 │   └── AdbKeyProvider.kt       AndroidKeyStore con respaldo en DataStore
 ├── domain/
 │   ├── TvCommand.kt        Catálogo completo de la sección 5
+│   ├── TvApp.kt            Catálogo de apps y parseo de pm list / dumpsys
 │   ├── ConnectionState.kt
 │   └── TvController.kt     Sesión viva, reconexión, serialización de comandos
 ├── ui/
 │   ├── theme/              Paleta oscura propia, no Material 3 por defecto
-│   ├── components/         Botones grandes, hápticos, animación de confirmación
-│   └── remote/             RemoteScreen + RemoteViewModel
+│   ├── components/         D-pad, botones grandes, hápticos, fichas de app
+│   ├── remote/             RemoteScreen: mando completo
+│   ├── apps/               AppsScreen: rejilla con detección dinámica
+│   ├── MandoApp.kt         Cáscara: cabecera, avisos, pestañas y ajustes
+│   └── MandoViewModel.kt   Estado de la cáscara y de la pantalla de Apps
 ├── AppContainer.kt         Inyección de dependencias a mano
 └── MainActivity.kt
 ```
@@ -103,7 +109,7 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Qué está verificado y qué no
 
-**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 18 tests):
+**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 25 tests):
 
 - Handshake completo contra un `FakeAdbd` que habla el protocolo real y comprueba de
   forma independiente lo que enviamos.
@@ -116,6 +122,8 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 - Detección de `A_STLS` y de endpoint inalcanzable.
 - Ida y vuelta de la clave persistida.
 - Las líneas de shell que genera cada `TvCommand`, incluido el entrecomillado.
+- El parseo de `pm list packages -3` (con y sin `-f`, con retornos de carro, con
+  duplicados y con líneas de error de por medio) y el de `mResumedActivity`.
 
 **No verificado, pendiente de tu móvil y tu televisor:**
 
@@ -133,8 +141,6 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Siguientes fases
 
-- **Fase 3** — D-pad y multimedia sobre `TvCommand`, pantalla de Apps con detección
-  dinámica vía `pm list packages -3` y cierre forzado con pulsación larga.
 - **Fase 4** — Motor de escenas (secuencias con retardos), editor visual y envío de
   texto con historial.
 - **Fase 5** — Widget, tiles de ajustes rápidos, notificación persistente, APK
