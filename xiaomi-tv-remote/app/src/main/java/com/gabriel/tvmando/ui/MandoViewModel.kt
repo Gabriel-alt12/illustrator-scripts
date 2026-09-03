@@ -185,7 +185,12 @@ class MandoViewModel(
             val result = controller.run(TvQuery.THIRD_PARTY_PACKAGES)
             _appsState.value = result.fold(
                 onSuccess = { output ->
-                    val apps = AppCatalog.parseInstalledPackages(output)
+                    // Segunda pasada para rescatar apps de streaming preinstaladas de
+                    // fabrica (Prime Video, Netflix...), que "-3" no trae porque Android
+                    // las cuenta como apps de sistema. Si esta consulta falla, seguimos
+                    // solo con las de terceros en lugar de perder la lista entera.
+                    val allOutput = controller.run(TvQuery.ALL_PACKAGES).getOrDefault("")
+                    val apps = AppCatalog.parseInstalledPackages(output, allOutput)
                     _appsState.value.copy(
                         apps = apps,
                         isLoading = false,

@@ -52,6 +52,7 @@ class TvCommandTest {
     @Test
     fun `las consultas de diagnostico coinciden con la especificacion`() {
         assertEquals("pm list packages -3", TvQuery.THIRD_PARTY_PACKAGES.shell)
+        assertEquals("pm list packages", TvQuery.ALL_PACKAGES.shell)
         assertEquals("getprop ro.product.model", TvQuery.MODEL.shell)
         assertEquals(
             "dumpsys activity activities | grep mResumedActivity",

@@ -44,7 +44,9 @@ import com.gabriel.tvmando.ui.theme.InkRaised
  *
  * La lista se descubre con `pm list packages -3` en lugar de llevar los paquetes
  * escritos a fuego: la seccion 11 de la especificacion avisa de que cambian entre
- * versiones y regiones. La app en primer plano se detecta con `dumpsys` y se resalta.
+ * versiones y regiones. Se completa con las de streaming preinstaladas de fabrica que
+ * esa consulta no trae (ver [com.gabriel.tvmando.domain.AppCatalog.parseInstalledPackages]).
+ * La app en primer plano se detecta con `dumpsys` y se resalta.
  */
 @Composable
 fun AppsScreen(

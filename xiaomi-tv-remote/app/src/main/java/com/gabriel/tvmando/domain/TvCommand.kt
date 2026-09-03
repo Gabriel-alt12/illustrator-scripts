@@ -107,6 +107,15 @@ enum class TvQuery(override val shell: String, override val label: String) : TvC
     MODEL("getprop ro.product.model", "Modelo"),
     ANDROID_VERSION("getprop ro.build.version.release", "Version de Android"),
     THIRD_PARTY_PACKAGES("pm list packages -3", "Apps instaladas"),
+
+    /**
+     * Muchas apps de streaming vienen preinstaladas de fabrica en la TV (Prime Video,
+     * Netflix...) y Android las cuenta como apps de sistema, no de terceros: la
+     * consulta de arriba sola las deja fuera. Esta segunda consulta trae todo el
+     * catalogo del dispositivo para poder rescatar, del catalogo conocido, las que
+     * "-3" esconde. Ver [com.gabriel.tvmando.domain.AppCatalog.parseInstalledPackages].
+     */
+    ALL_PACKAGES("pm list packages", "Todas las apps"),
     CURRENT_ACTIVITY(
         "dumpsys activity activities | grep mResumedActivity",
         "App en primer plano",

@@ -170,6 +170,10 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 - Las líneas de shell que genera cada `TvCommand`, incluido el entrecomillado.
 - El parseo de `pm list packages -3` (con y sin `-f`, con retornos de carro, con
   duplicados y con líneas de error de por medio) y el de `mResumedActivity`.
+- El rescate de apps de streaming preinstaladas de fábrica (Prime Video, Netflix...)
+  que `-3` no trae por contarlas Android como apps de sistema: una segunda consulta
+  con `pm list packages` (catálogo completo) se cruza con el catálogo conocido para
+  recuperarlas sin inundar la rejilla de servicios internos sin nombre.
 - El motor de escenas con esperas falsas: orden de los comandos, retardos exactos,
   progreso paso a paso y que un fallo corte la secuencia en lugar de seguir.
 - El códec de escenas: ida y vuelta de las de fábrica y de textos con comillas,

@@ -13,9 +13,10 @@ data class TvApp(
  *
  * La seccion 11 de la especificacion avisa de que los nombres de paquete cambian
  * entre versiones y regiones, asi que la lista se descubre siempre con
- * `pm list packages -3` y este catalogo solo sirve para ponerle un nombre bonito a
- * las que reconocemos. Una app que no este aqui aparece igual, con el nombre
- * deducido del paquete.
+ * `pm list packages -3` (mas una segunda pasada con `pm list packages` para rescatar
+ * las de streaming preinstaladas de fabrica, ver [parseInstalledPackages]) y este
+ * catalogo solo sirve para ponerle un nombre bonito a las que reconocemos. Una app
+ * que no este aqui aparece igual, con el nombre deducido del paquete.
  *
  * Nota: por ADB no hay forma barata de sacar la etiqueta ni el icono reales de una
  * app (haria falta aapt en el dispositivo). De ahi el catalogo mas el monograma de
@@ -65,15 +66,37 @@ object AppCatalog {
     }
 
     /**
-     * Parsea la salida de `pm list packages -3`, que llega como una linea por app:
+     * Parsea la salida de `pm list packages -3` (apps de terceros) y, opcionalmente,
+     * la de `pm list packages` (catalogo completo del dispositivo), que llegan como
+     * una linea por app:
      *
      *     package:com.netflix.mediaclient
      *     package:com.spotify.tv.android
      *
      * Tolera el formato con ruta (`-f`) y los retornos de carro que a veces mete el
      * shell de la TV.
+     *
+     * Las apps de terceros entran todas, se conozcan o no: son las que el usuario ha
+     * instalado el mismo. Del catalogo completo solo se rescatan las que aparecen en
+     * [KNOWN_NAMES] (Prime Video, Netflix, YouTube...), porque en las Xiaomi TV suelen
+     * venir preinstaladas de fabrica y por tanto "-3" las esconde al contarlas como
+     * apps de sistema. Meter el catalogo completo sin filtrar aqui inundaria la
+     * rejilla de servicios internos de Android sin nombre reconocible.
      */
-    fun parseInstalledPackages(shellOutput: String): List<TvApp> = shellOutput
+    fun parseInstalledPackages(
+        thirdPartyOutput: String,
+        allPackagesOutput: String = "",
+    ): List<TvApp> {
+        val thirdParty = extractPackageNames(thirdPartyOutput)
+        val preinstalled = extractPackageNames(allPackagesOutput).filter { it in KNOWN_NAMES }
+        return (thirdParty + preinstalled)
+            .distinct()
+            .map(::describe)
+            .sortedWith(compareBy({ rankOf(it.packageName) }, { it.displayName.lowercase() }))
+            .toList()
+    }
+
+    private fun extractPackageNames(shellOutput: String): List<String> = shellOutput
         .lineSequence()
         .map { line ->
             // Con -f la linea es "package:/data/app/.../base.apk=com.foo"; sin -f,
@@ -83,8 +106,6 @@ object AppCatalog {
         }
         .filter { it.isNotEmpty() && it.contains('.') && !it.contains(' ') }
         .distinct()
-        .map(::describe)
-        .sortedWith(compareBy({ rankOf(it.packageName) }, { it.displayName.lowercase() }))
         .toList()
 
     /**

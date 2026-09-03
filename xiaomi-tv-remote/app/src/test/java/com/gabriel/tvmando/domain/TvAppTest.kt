@@ -62,6 +62,37 @@ class TvAppTest {
     }
 
     @Test
+    fun `rescata del catalogo completo las apps conocidas que -3 esconde`() {
+        // Prime Video viene preinstalada de fabrica en la Xiaomi TV: Android la cuenta
+        // como app de sistema y "pm list packages -3" no la trae.
+        val terceros = "package:com.spotify.tv.android"
+        val catalogoCompleto = """
+            package:android
+            package:com.amazon.amazonvideo.livingroom
+            package:com.android.settings
+            package:com.spotify.tv.android
+        """.trimIndent()
+
+        val apps = AppCatalog.parseInstalledPackages(terceros, catalogoCompleto)
+
+        val nombres = apps.map { it.displayName }
+        assertTrue(nombres.contains("Prime Video"))
+        assertTrue(nombres.contains("Spotify"))
+        // Las desconocidas del catalogo completo (android, com.android.settings) no
+        // deben colarse: inundarian la rejilla de servicios internos sin nombre.
+        assertEquals(2, apps.size)
+    }
+
+    @Test
+    fun `sin segunda pasada se comporta igual que antes`() {
+        val salida = "package:com.netflix.mediaclient"
+        assertEquals(
+            listOf("com.netflix.mediaclient"),
+            AppCatalog.parseInstalledPackages(salida).map { it.packageName },
+        )
+    }
+
+    @Test
     fun `deduce un nombre razonable para paquetes desconocidos`() {
         assertEquals("Twitch", AppCatalog.describe("tv.twitch.android.app").displayName)
         assertEquals("Coolapp", AppCatalog.describe("com.ejemplo.coolapp").displayName)
