@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema de arranque. La UI real la pinta Compose (MandoTheme); esto solo evita
+         el fogonazo blanco entre que se lanza la activity y compone la pantalla. -->
+    <style name="Theme.TvMando" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ink</item>
+        <item name="android:statusBarColor">@android:color/transparent</item>
+        <item name="android:navigationBarColor">@android:color/transparent</item>
+    </style>
+</resources>
