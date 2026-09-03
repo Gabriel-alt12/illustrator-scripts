@@ -12,9 +12,8 @@ data class TvApp(
  * Traduce la salida cruda del shell de la TV a algo que se pueda pintar.
  *
  * La seccion 11 de la especificacion avisa de que los nombres de paquete cambian
- * entre versiones y regiones, asi que la lista se descubre siempre con
- * `pm list packages -3` (mas una segunda pasada con `pm list packages` para rescatar
- * las de streaming preinstaladas de fabrica, ver [parseInstalledPackages]) y este
+ * entre versiones y regiones, asi que la lista se descubre siempre preguntandole a la
+ * TV (ver [parseInstalledPackages], que cruza tres consultas distintas) y este
  * catalogo solo sirve para ponerle un nombre bonito a las que reconocemos. Una app
  * que no este aqui aparece igual, con el nombre deducido del paquete.
  *
@@ -29,8 +28,14 @@ object AppCatalog {
      * se usa a diario.
      */
     private val KNOWN_NAMES: Map<String, String> = linkedMapOf(
+        // Netflix reparte dos paquetes distintos: "ninja" es el de Android TV y
+        // "mediaclient" el de movil. En la Xiaomi TV el bueno es el primero.
+        "com.netflix.ninja" to "Netflix",
         "com.netflix.mediaclient" to "Netflix",
         "com.google.android.youtube.tv" to "YouTube",
+        // Y Amazon otros dos: "thirdpartyclient" es el que se instala en Google TV
+        // desde la Play Store; "livingroom" es el de los Fire TV.
+        "com.amazon.avod.thirdpartyclient" to "Prime Video",
         "com.amazon.amazonvideo.livingroom" to "Prime Video",
         "com.disney.disneyplus" to "Disney+",
         "com.wbd.stream" to "HBO Max",
@@ -44,16 +49,29 @@ object AppCatalog {
         "com.filmin.androidtv" to "Filmin",
         "com.plexapp.android" to "Plex",
         "tv.twitch.android.app" to "Twitch",
+        "tv.twitch.android.viewer" to "Twitch",
+        "com.dazn" to "DAZN",
         "com.google.android.youtube.tvmusic" to "YouTube Music",
         "com.google.android.apps.mediashell" to "Chromecast",
         "org.videolan.vlc" to "VLC",
+        "org.xbmc.kodi" to "Kodi",
+        "com.valvesoftware.steamlink" to "Steam Link",
+        "com.android.vending" to "Play Store",
         "com.google.android.tvlauncher" to "Inicio",
+        "com.google.android.apps.tv.launcherx" to "Inicio",
     )
 
-    /** Sufijos que no aportan nada al deducir el nombre de un paquete desconocido. */
+    /**
+     * Sufijos que no aportan nada al deducir el nombre de un paquete desconocido.
+     *
+     * Los nombres internos de las apps de TV estan llenos de estos: sin quitarlos,
+     * `com.amazon.avod.thirdpartyclient` se quedaria en "Thirdpartyclient" en vez de
+     * en "Amazon", que al menos dice algo.
+     */
     private val NOISE_SEGMENTS = setOf(
         "tv", "android", "androidtv", "app", "apps", "mobile", "client", "player",
-        "leanback", "atv", "google",
+        "leanback", "atv", "google", "avod", "thirdpartyclient", "livingroom",
+        "mediaclient", "ninja", "firetv", "smarttv", "androidtvlauncher",
     )
 
     fun describe(packageName: String): TvApp {
@@ -66,35 +84,60 @@ object AppCatalog {
     }
 
     /**
-     * Parsea la salida de `pm list packages -3` (apps de terceros) y, opcionalmente,
-     * la de `pm list packages` (catalogo completo del dispositivo), que llegan como
-     * una linea por app:
+     * Construye la rejilla de apps cruzando lo que responden tres consultas de la TV.
      *
-     *     package:com.netflix.mediaclient
+     * Las dos de `pm list packages` llegan como una linea por app, y se toleran tanto
+     * el formato con ruta (`-f`) como los retornos de carro que a veces mete el shell:
+     *
+     *     package:com.netflix.ninja
      *     package:com.spotify.tv.android
      *
-     * Tolera el formato con ruta (`-f`) y los retornos de carro que a veces mete el
-     * shell de la TV.
+     * Se cruzan tres fuentes porque ninguna sola vale:
      *
-     * Las apps de terceros entran todas, se conozcan o no: son las que el usuario ha
-     * instalado el mismo. Del catalogo completo solo se rescatan las que aparecen en
-     * [KNOWN_NAMES] (Prime Video, Netflix, YouTube...), porque en las Xiaomi TV suelen
-     * venir preinstaladas de fabrica y por tanto "-3" las esconde al contarlas como
-     * apps de sistema. Meter el catalogo completo sin filtrar aqui inundaria la
-     * rejilla de servicios internos de Android sin nombre reconocible.
+     *  - **Terceros** (`-3`): entran todas, se conozcan o no. Son las que el usuario
+     *    ha instalado el mismo.
+     *  - **Con icono en la TV** (`launcherOutput`): entran todas tambien. Es la mejor
+     *    fuente, porque es literalmente lo que se ve en la pantalla de inicio del
+     *    televisor, venga de fabrica o de la Play Store.
+     *  - **Catalogo completo**: de aqui solo se rescatan las que aparecen en
+     *    [KNOWN_NAMES]. Sirve de red de seguridad para las preinstaladas de fabrica si
+     *    la consulta del lanzador no funciona en esta TV. Sin filtrar inundaria la
+     *    rejilla de servicios internos de Android sin nombre reconocible.
      */
     fun parseInstalledPackages(
         thirdPartyOutput: String,
         allPackagesOutput: String = "",
+        launcherOutput: String = "",
     ): List<TvApp> {
         val thirdParty = extractPackageNames(thirdPartyOutput)
+        val launchable = extractLauncherPackages(launcherOutput)
         val preinstalled = extractPackageNames(allPackagesOutput).filter { it in KNOWN_NAMES }
-        return (thirdParty + preinstalled)
+        return (thirdParty + launchable + preinstalled)
             .distinct()
             .map(::describe)
             .sortedWith(compareBy({ rankOf(it.packageName) }, { it.displayName.lowercase() }))
             .toList()
     }
+
+    /**
+     * Saca los paquetes de la salida de `cmd package query-activities`, que no viene
+     * en lineas "package:..." sino en bloques por actividad:
+     *
+     *     Activity #0:
+     *       ActivityInfo:
+     *         name=com.netflix.ninja.MainActivity
+     *         packageName=com.netflix.ninja
+     *
+     * Solo se mira `packageName=` y no el resto de campos, que cambian de forma entre
+     * versiones de Android.
+     */
+    private fun extractLauncherPackages(shellOutput: String): List<String> =
+        LAUNCHER_PACKAGE_PATTERN
+            .findAll(shellOutput)
+            .map { it.groupValues[1] }
+            .filter { it.contains('.') }
+            .distinct()
+            .toList()
 
     private fun extractPackageNames(shellOutput: String): List<String> = shellOutput
         .lineSequence()
@@ -142,4 +185,7 @@ object AppCatalog {
     }
 
     private val FOREGROUND_PATTERN = Regex("""u\d+\s+([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)/""")
+
+    private val LAUNCHER_PACKAGE_PATTERN =
+        Regex("""packageName=([A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z0-9_]+)+)""")
 }

@@ -84,6 +84,60 @@ class TvAppTest {
     }
 
     @Test
+    fun `saca las apps con icono de la salida de query-activities`() {
+        // Salida real abreviada de "cmd package query-activities": bloques por
+        // actividad, no lineas "package:...".
+        val salida = """
+            Activity #0:
+              priority=0 preferredOrder=0 match=0x108000
+              ActivityInfo:
+                name=com.netflix.ninja.MainActivity
+                packageName=com.netflix.ninja
+                enabled=true exported=true
+            Activity #1:
+              ActivityInfo:
+                name=com.amazon.avod.thirdpartyclient.LauncherActivity
+                packageName=com.amazon.avod.thirdpartyclient
+        """.trimIndent()
+
+        val apps = AppCatalog.parseInstalledPackages("", launcherOutput = salida)
+
+        assertEquals(
+            listOf("Netflix", "Prime Video"),
+            apps.map { it.displayName },
+        )
+        assertTrue(apps.all { it.isKnown })
+    }
+
+    @Test
+    fun `una app con icono desconocida entra igual con nombre deducido`() {
+        val salida = "        packageName=com.ejemplo.cosarara"
+        val apps = AppCatalog.parseInstalledPackages("", launcherOutput = salida)
+        assertEquals(listOf("com.ejemplo.cosarara"), apps.map { it.packageName })
+        assertEquals("Cosarara", apps.single().displayName)
+        assertFalse(apps.single().isKnown)
+    }
+
+    @Test
+    fun `los sufijos internos de las apps de TV no acaban como nombre`() {
+        // Sin limpiar estos sufijos saldrian "Thirdpartyclient", "Ninja" y
+        // "Livingroom" en vez del segmento que de verdad dice algo.
+        assertEquals("Otra", AppCatalog.describe("com.otra.avod.thirdpartyclient").displayName)
+        assertEquals("Rara", AppCatalog.describe("com.rara.ninja").displayName)
+        assertEquals("Cosa", AppCatalog.describe("com.cosa.livingroom").displayName)
+    }
+
+    @Test
+    fun `ignora la salida del lanzador si la TV no entiende el comando`() {
+        val error = "Unknown command: query-activities"
+        val apps = AppCatalog.parseInstalledPackages(
+            "package:com.netflix.ninja",
+            launcherOutput = error,
+        )
+        assertEquals(listOf("com.netflix.ninja"), apps.map { it.packageName })
+    }
+
+    @Test
     fun `sin segunda pasada se comporta igual que antes`() {
         val salida = "package:com.netflix.mediaclient"
         assertEquals(

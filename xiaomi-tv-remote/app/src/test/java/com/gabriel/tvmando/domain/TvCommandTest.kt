@@ -1,6 +1,7 @@
 package com.gabriel.tvmando.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
@@ -53,6 +54,10 @@ class TvCommandTest {
     fun `las consultas de diagnostico coinciden con la especificacion`() {
         assertEquals("pm list packages -3", TvQuery.THIRD_PARTY_PACKAGES.shell)
         assertEquals("pm list packages", TvQuery.ALL_PACKAGES.shell)
+        // La consulta del lanzador pregunta por las dos categorias: Google TV usa
+        // LEANBACK_LAUNCHER, pero una app de movil por sideload solo trae LAUNCHER.
+        assertTrue(TvQuery.LAUNCHER_ACTIVITIES.shell.contains("LEANBACK_LAUNCHER"))
+        assertTrue(TvQuery.LAUNCHER_ACTIVITIES.shell.contains("category.LAUNCHER"))
         assertEquals("getprop ro.product.model", TvQuery.MODEL.shell)
         assertEquals(
             "dumpsys activity activities | grep mResumedActivity",

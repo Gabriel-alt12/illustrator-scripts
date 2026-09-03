@@ -116,6 +116,26 @@ enum class TvQuery(override val shell: String, override val label: String) : TvC
      * "-3" esconde. Ver [com.gabriel.tvmando.domain.AppCatalog.parseInstalledPackages].
      */
     ALL_PACKAGES("pm list packages", "Todas las apps"),
+
+    /**
+     * Las apps que tienen icono en la pantalla de inicio de la TV, que es
+     * exactamente lo que el usuario espera ver en la rejilla.
+     *
+     * Es la fuente de verdad buena: no depende de si la app vino de fabrica o de la
+     * Play Store, ni de que su paquete este en nuestro catalogo. Se preguntan las dos
+     * categorias porque en Google TV lo normal es LEANBACK_LAUNCHER, pero una app de
+     * movil colada por sideload puede declarar solo LAUNCHER.
+     *
+     * `cmd package` existe desde Android 9; si la TV no lo entiende, la salida no
+     * casara con el patron y el resto de consultas siguen cubriendo el caso.
+     */
+    LAUNCHER_ACTIVITIES(
+        "cmd package query-activities -a android.intent.action.MAIN " +
+            "-c android.intent.category.LEANBACK_LAUNCHER; " +
+            "cmd package query-activities -a android.intent.action.MAIN " +
+            "-c android.intent.category.LAUNCHER",
+        "Apps con icono en la TV",
+    ),
     CURRENT_ACTIVITY(
         "dumpsys activity activities | grep mResumedActivity",
         "App en primer plano",
