@@ -64,10 +64,19 @@ data class PressDigit(val digit: Int) : TvCommand {
     override val label: String get() = "Digito $digit"
 }
 
-/** Abre una app por su nombre de paquete. */
+/**
+ * Abre una app por su nombre de paquete.
+ *
+ * Se piden las dos categorias porque las apps de television declaran
+ * LEANBACK_LAUNCHER y muchas no declaran LAUNCHER: pidiendo solo esa ultima, monkey
+ * responde "No activities found to run" justo con las apps que mas se usan aqui.
+ * `-c` se puede repetir y monkey lanza la actividad que case con cualquiera de ellas.
+ */
 data class LaunchApp(val packageName: String) : TvCommand {
     override val shell: String
-        get() = "monkey -p ${packageName.shellQuoted()} -c android.intent.category.LAUNCHER 1"
+        get() = "monkey -p ${packageName.shellQuoted()} " +
+            "-c android.intent.category.LEANBACK_LAUNCHER " +
+            "-c android.intent.category.LAUNCHER 1"
     override val label: String get() = "Abrir $packageName"
 }
 

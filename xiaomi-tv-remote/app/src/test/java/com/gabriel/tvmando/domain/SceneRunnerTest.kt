@@ -42,7 +42,7 @@ class SceneRunnerTest {
         assertEquals(
             listOf(
                 "input keyevent KEYCODE_POWER",
-                "monkey -p 'com.netflix.mediaclient' -c android.intent.category.LAUNCHER 1",
+                LaunchApp("com.netflix.mediaclient").shell,
                 "media volume --stream 3 --set 8",
             ),
             ejecutados,
@@ -121,7 +121,7 @@ class SceneRunnerTest {
 
         assertEquals(
             listOf(
-                "monkey -p 'com.netflix.mediaclient' -c android.intent.category.LAUNCHER 1",
+                LaunchApp("com.netflix.mediaclient").shell,
                 "input text 'el senor de los anillos'",
                 "input keyevent KEYCODE_ENTER",
             ),

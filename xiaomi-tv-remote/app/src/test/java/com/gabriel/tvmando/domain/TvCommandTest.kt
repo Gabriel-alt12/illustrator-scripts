@@ -26,9 +26,13 @@ class TvCommandTest {
     }
 
     @Test
-    fun `lanzar una app usa monkey con la categoria LAUNCHER`() {
+    fun `lanzar una app pide las dos categorias de lanzador`() {
+        // Sin LEANBACK_LAUNCHER, monkey no encuentra actividad en las apps que solo
+        // existen para television, que son justo las que mas se abren desde aqui.
         assertEquals(
-            "monkey -p 'com.netflix.mediaclient' -c android.intent.category.LAUNCHER 1",
+            "monkey -p 'com.netflix.mediaclient' " +
+                "-c android.intent.category.LEANBACK_LAUNCHER " +
+                "-c android.intent.category.LAUNCHER 1",
             LaunchApp("com.netflix.mediaclient").shell,
         )
     }

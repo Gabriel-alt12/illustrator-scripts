@@ -53,7 +53,15 @@ data class Scene(
     val totalDurationMs: Long get() = steps.sumOf { it.delayMs }
 }
 
-/** Las escenas de fabrica de la seccion 7 de la especificacion. */
+/**
+ * Las escenas de fabrica: las tres de la seccion 7 de la especificacion mas las que
+ * salieron de como se usa el salon de verdad.
+ *
+ * No hay ninguna atada a una hora ("apagar a las 23:30" y demas) a proposito: el uso
+ * aqui es a ratos sueltos y sin patron fijo, asi que una escena por reloj se
+ * dispararia casi siempre en mal momento. Lo que si cambia mucho es *quien* esta en el
+ * salon, y de ahi salen las tres ultimas.
+ */
 object SceneLibrary {
 
     fun defaults(): List<Scene> = listOf(
@@ -64,7 +72,7 @@ object SceneLibrary {
                 SceneStep.of(PressKey(TvKey.POWER), delayMs = 5_000),
                 // El paquete de Netflix va escrito aqui solo como punto de partida:
                 // es una escena editable y la pantalla de Apps da el paquete real.
-                SceneStep.of(LaunchApp("com.netflix.mediaclient"), delayMs = 4_000),
+                SceneStep.of(LaunchApp("com.netflix.ninja"), delayMs = 4_000),
                 SceneStep.of(SetBrightness(60)),
                 SceneStep.of(SetVolume(8)),
             ),
@@ -88,6 +96,42 @@ object SceneLibrary {
                 SceneStep.of(SetVolume(0), delayMs = 300),
                 SceneStep.of(PressKey(TvKey.HOME), delayMs = 800),
                 SceneStep.of(PressKey(TvKey.POWER)),
+            ),
+        ),
+        Scene(
+            id = "silencio",
+            name = "Silencio ya",
+            // Sin esperas ni encendidos: suena el timbre o alguien habla y se corta
+            // el sonido en el acto. Es la unica escena pensada para ejecutarse con
+            // prisa, asi que va primero lo que corta el audio.
+            steps = listOf(
+                SceneStep.of(PressKey(TvKey.VOLUME_MUTE)),
+                SceneStep.of(PressKey(TvKey.MEDIA_PLAY_PAUSE)),
+            ),
+        ),
+        Scene(
+            id = "visita",
+            name = "Llega visita",
+            // Deja la TV en la pantalla de inicio, con brillo alto y volumen de
+            // conversacion, para que la coja quien sea y elija sin pelearse con lo
+            // que hubiera puesto antes.
+            steps = listOf(
+                SceneStep.of(PressKey(TvKey.WAKEUP), delayMs = 1_500),
+                SceneStep.of(PressKey(TvKey.HOME), delayMs = 800),
+                SceneStep.of(SetBrightness(200)),
+                SceneStep.of(SetVolume(6)),
+            ),
+        ),
+        Scene(
+            id = "fondo",
+            name = "Musica de fondo",
+            // Para cuando hay gente y la tele es ambiente, no espectaculo: musica
+            // baja y pantalla apagada sin apagar el aparato.
+            steps = listOf(
+                SceneStep.of(PressKey(TvKey.WAKEUP), delayMs = 1_500),
+                SceneStep.of(LaunchApp("com.spotify.tv.android"), delayMs = 4_000),
+                SceneStep.of(SetVolume(4)),
+                SceneStep.of(SetBrightness(0)),
             ),
         ),
     )

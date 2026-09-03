@@ -70,10 +70,23 @@ class SceneCodecTest {
     }
 
     @Test
-    fun `las escenas de fabrica son las tres de la especificacion`() {
+    fun `las escenas de fabrica son las de la especificacion mas las del salon`() {
         assertEquals(
-            listOf("Modo cine", "Modo musica", "Apagar todo"),
+            listOf(
+                "Modo cine",
+                "Modo musica",
+                "Apagar todo",
+                "Silencio ya",
+                "Llega visita",
+                "Musica de fondo",
+            ),
             SceneLibrary.defaults().map { it.name },
         )
+    }
+
+    @Test
+    fun `silencio ya no tiene esperas, que para eso esta`() {
+        val escena = SceneLibrary.defaults().single { it.id == "silencio" }
+        assertEquals(0L, escena.totalDurationMs)
     }
 }
