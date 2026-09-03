@@ -44,7 +44,7 @@ import com.gabriel.tvmando.ui.theme.InkRaised
  * Cruceta direccional con OK en el centro.
  *
  * Es la pieza mas grande de la app a proposito: se navega por menus de la TV sin
- * mirar el movil, asi que cada zona tiene 76 dp de lado (muy por encima de los 48 dp
+ * mirar el movil, asi que cada zona tiene 64 dp de lado (por encima de los 48 dp
  * minimos) y el OK queda en el centro geometrico, donde cae el pulgar por defecto.
  */
 @Composable
@@ -92,7 +92,7 @@ private fun BoxScope.Direction(
     Box(
         modifier = Modifier
             .align(alignment)
-            .padding(6.dp)
+            .padding(5.dp)
             .size(ZONE_SIZE)
             .clip(CircleShape)
             .background(background)
@@ -108,7 +108,7 @@ private fun BoxScope.Direction(
             imageVector = icon,
             contentDescription = description,
             tint = if (enabled) tint else ChalkFaint,
-            modifier = Modifier.size(38.dp),
+            modifier = Modifier.size(34.dp),
         )
     }
 }
@@ -151,6 +151,8 @@ private fun BoxScope.CenterKey(enabled: Boolean, onClick: () -> Unit) {
     }
 }
 
-private val DIAL_SIZE = 244.dp
-private val ZONE_SIZE = 72.dp
-private val CENTER_SIZE = 92.dp
+// Medido contra un Galaxy S23 (412 x 891 dp): con estos tamanos el mando entero
+// cabe sin scroll, que es lo que importa en un control que se usa sin mirar.
+private val DIAL_SIZE = 208.dp
+private val ZONE_SIZE = 64.dp
+private val CENTER_SIZE = 80.dp

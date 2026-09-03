@@ -104,7 +104,7 @@ fun PowerKey(
     icon: ImageVector,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    size: Dp = 104.dp,
+    size: Dp = 96.dp,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
@@ -160,7 +160,7 @@ fun VolumeBar(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(92.dp)
+            .height(84.dp)
             .clip(RoundedCornerShape(28.dp))
             .background(InkRaised)
             .border(1.dp, Hairline, RoundedCornerShape(28.dp)),
@@ -229,7 +229,7 @@ fun RoundKey(
     description: String,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
-    size: Dp = 58.dp,
+    size: Dp = 52.dp,
     emphasis: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -282,7 +282,7 @@ fun PillKey(
 
     Column(
         modifier = modifier
-            .height(66.dp)
+            .height(60.dp)
             .clip(RoundedCornerShape(20.dp))
             .background(InkRaised)
             .border(1.dp, ring, RoundedCornerShape(20.dp))

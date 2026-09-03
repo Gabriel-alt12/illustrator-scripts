@@ -97,7 +97,7 @@ fun RemoteScreen(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
         Dpad(
             onUp = { press(TvKey.DPAD_UP) },
@@ -108,7 +108,7 @@ fun RemoteScreen(
             enabled = enabled,
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -132,7 +132,7 @@ fun RemoteScreen(
                 icon = Icons.Rounded.PlayArrow,
                 description = "Play o pausa",
                 enabled = enabled,
-                size = 68.dp,
+                size = 64.dp,
                 emphasis = true,
             )
             RoundKey(
@@ -149,7 +149,7 @@ fun RemoteScreen(
             )
         }
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
         VolumeBar(
             onDown = { press(TvKey.VOLUME_DOWN) },
@@ -161,7 +161,7 @@ fun RemoteScreen(
             enabled = enabled,
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
 
         PowerKey(
             onClick = { press(TvKey.POWER, Tap.Confirm) },
@@ -169,6 +169,5 @@ fun RemoteScreen(
             enabled = enabled,
         )
 
-        Spacer(Modifier.height(16.dp))
     }
 }
