@@ -253,13 +253,21 @@ private val DIACRITICS = Regex("""\p{Mn}+""")
  * Deshace el base64 de [TvQuery.SCREENSHOT].
  *
  * Se usa el decodificador MIME y no el estricto porque `base64` de la TV parte la
- * salida en lineas, y el estricto se atraganta con los saltos. Si lo que llega no es
- * base64 (un error del shell, por ejemplo) se devuelve null en vez de reventar: quien
- * llama ya tiene un sitio donde contarlo.
+ * salida en lineas, y el estricto se atraganta con los saltos. A cambio, el MIME se
+ * salta lo que no es base64 en vez de quejarse, asi que un "base64: not found" del
+ * shell se convertiria en veinte bytes de basura que luego no hay quien pinte: por eso
+ * se exige ademas la firma de un PNG. Lo que no la lleve se devuelve como null y quien
+ * llama ya tiene donde contar lo que dijo la TV.
  */
 fun decodeScreenshot(raw: String): ByteArray? = runCatching {
     Base64.getMimeDecoder().decode(raw.trim())
-}.getOrNull()?.takeIf { it.isNotEmpty() }
+}.getOrNull()?.takeIf { bytes ->
+    bytes.size > PNG_SIGNATURE.size &&
+        PNG_SIGNATURE.indices.all { bytes[it] == PNG_SIGNATURE[it] }
+}
+
+/** Los cuatro primeros bytes de cualquier PNG: 0x89 "PNG". */
+private val PNG_SIGNATURE = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47)
 
 /**
  * Entrecomilla para el shell de la TV.

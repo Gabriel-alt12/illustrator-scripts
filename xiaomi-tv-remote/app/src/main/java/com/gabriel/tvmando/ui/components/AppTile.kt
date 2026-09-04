@@ -127,9 +127,12 @@ fun AppTile(
                 .border(if (isForeground) 2.dp else 1.dp, ring, RoundedCornerShape(24.dp)),
             contentAlignment = Alignment.Center,
         ) {
-            if (icon != null) {
+            // A una propiedad delegada no se le hace smart cast: hay que sacar el
+            // valor a una variable normal antes de comprobarlo.
+            val bitmap = icon
+            if (bitmap != null) {
                 Image(
-                    bitmap = icon,
+                    bitmap = bitmap,
                     contentDescription = null,
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
@@ -161,7 +164,10 @@ fun AppTile(
                     .clip(CircleShape)
                     .background(Ink.copy(alpha = 0.55f))
                     .clickable(onClick = onToggleFavorite)
-                    .padding(5.dp)
+                    // El relleno lleva la zona tactil a los 48 dp sin agrandar el
+                    // icono: esta encima de la ficha y un toque desviado abriria la
+                    // app en vez de fijarla.
+                    .padding(15.dp)
                     .size(18.dp),
             )
         }

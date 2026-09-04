@@ -128,4 +128,13 @@ class TvCommandTest {
         assertNull(decodeScreenshot(""))
         assertNull(decodeScreenshot("   "))
     }
+
+    @Test
+    fun `lo que no es un PNG se descarta aunque el base64 lo acepte`() {
+        // El decodificador MIME ignora lo que no es base64 en vez de fallar, asi que
+        // un mensaje de error del shell sale como bytes sueltos: sin comprobar la
+        // firma, el dialogo se quedaria mudo en vez de contar lo que dijo la TV.
+        assertNull(decodeScreenshot("/system/bin/sh: base64: not found"))
+        assertNull(decodeScreenshot("Error: Activity not started"))
+    }
 }
