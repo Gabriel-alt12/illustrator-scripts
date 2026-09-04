@@ -179,6 +179,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     apps = appsState.apps,
                     enabled = state.controlsEnabled,
                     onTargetChange = viewModel::setSearchTarget,
+                    onSlowTypingChange = viewModel::setSlowTyping,
                     onSearch = viewModel::search,
                     onClearHistory = viewModel::clearSearchHistory,
                     haptics = haptics,

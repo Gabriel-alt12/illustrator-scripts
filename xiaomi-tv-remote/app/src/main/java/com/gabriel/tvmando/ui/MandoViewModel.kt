@@ -78,6 +78,8 @@ data class SearchUiState(
     val history: List<String> = emptyList(),
     val target: SearchTarget = SearchTarget.GoogleTv,
     val isTyping: Boolean = false,
+    /** Teclear letra a letra en vez de inyectar el texto de golpe. */
+    val slowTyping: Boolean = true,
 )
 
 class MandoViewModel(
@@ -104,6 +106,7 @@ class MandoViewModel(
 
     private val sceneProgress = MutableStateFlow<SceneProgress?>(null)
     private val searchTarget = MutableStateFlow<SearchTarget>(SearchTarget.GoogleTv)
+    private val slowTyping = MutableStateFlow(true)
     private var sceneJob: Job? = null
 
     /**
@@ -141,11 +144,13 @@ class MandoViewModel(
         settings.searchHistory,
         searchTarget,
         sceneProgress,
-    ) { history, target, progress ->
+        slowTyping,
+    ) { history, target, progress, slowly ->
         SearchUiState(
             history = history,
             target = target,
             isTyping = progress?.scene?.id == SEARCH_SCENE_ID,
+            slowTyping = slowly,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchUiState())
 
@@ -326,11 +331,19 @@ class MandoViewModel(
      * Buscar es una escena efimera: abrir donde toque, esperar, escribir y aceptar.
      * Se reutiliza el motor de escenas para no duplicar la logica de los retardos.
      */
+    /**
+     * Cambia como se teclea. Ver [SceneLibrary.search]: por defecto va tecla a tecla,
+     * que es lo unico que entienden los buscadores de varias apps de television.
+     */
+    fun setSlowTyping(enabled: Boolean) {
+        slowTyping.value = enabled
+    }
+
     fun search(query: String) {
         val clean = query.trim().replace('\n', ' ')
         if (clean.isEmpty()) return
         viewModelScope.launch { settings.rememberSearch(clean) }
-        runScene(SceneLibrary.search(clean, searchTarget.value))
+        runScene(SceneLibrary.search(clean, searchTarget.value, slowTyping.value))
     }
 
     fun clearSearchHistory() {

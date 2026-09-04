@@ -11,6 +11,37 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
 
+    <!--
+        Para leer el icono de estas apps y ponerlo en la rejilla. Desde Android 11 hay
+        que declarar una por una las que se van a consultar: sin esto el sistema
+        responde "no instalada" aunque lo este. Se listan solo las del catalogo en vez
+        de pedir QUERY_ALL_PACKAGES, que da acceso a la lista entera del movil para
+        algo que no lo necesita.
+    -->
+    <queries>
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.google.android.youtube" />
+        <package android:name="com.google.android.apps.youtube.music" />
+        <package android:name="com.amazon.avod.thirdpartyclient" />
+        <package android:name="com.disney.disneyplus" />
+        <package android:name="com.wbd.stream" />
+        <package android:name="com.hbo.hbonow" />
+        <package android:name="com.spotify.music" />
+        <package android:name="com.apple.atve.android.appletv" />
+        <package android:name="com.movistarplus.movistarplus" />
+        <package android:name="es.atresmedia.atresplayer" />
+        <package android:name="es.rtve.rtveplay" />
+        <package android:name="es.mediaset.mitele" />
+        <package android:name="com.filmin.filmin" />
+        <package android:name="com.plexapp.android" />
+        <package android:name="tv.twitch.android.app" />
+        <package android:name="com.dazn" />
+        <package android:name="org.videolan.vlc" />
+        <package android:name="org.xbmc.kodi" />
+        <package android:name="com.valvesoftware.steamlink" />
+        <package android:name="com.android.vending" />
+    </queries>
+
     <application
         android:name=".TvMandoApp"
         android:label="@string/app_name"

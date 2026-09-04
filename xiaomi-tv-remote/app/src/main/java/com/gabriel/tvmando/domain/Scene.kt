@@ -136,15 +136,21 @@ object SceneLibrary {
         ),
     )
 
-    /** Escena efimera de la pantalla de busqueda. No se persiste. */
-    fun search(query: String, target: SearchTarget): Scene {
+    /**
+     * Escena efimera de la pantalla de busqueda. No se persiste.
+     *
+     * [slowly] elige como se escribe: tecla a tecla ([TypeKeys], lo que entienden los
+     * buscadores caseros de las apps de TV) o el texto entero de golpe ([TypeText], que
+     * es mas rapido y admite tildes y simbolos, cuando el destino lo acepta).
+     */
+    fun search(query: String, target: SearchTarget, slowly: Boolean = true): Scene {
         val steps = buildList {
             when (target) {
                 SearchTarget.Focused -> Unit
                 SearchTarget.GoogleTv -> add(SceneStep.of(PressKey(TvKey.ASSIST), delayMs = 2_500))
                 is SearchTarget.App -> add(SceneStep.of(LaunchApp(target.packageName), delayMs = 3_500))
             }
-            add(SceneStep.of(TypeText(query), delayMs = 400))
+            add(SceneStep.of(if (slowly) TypeKeys(query) else TypeText(query), delayMs = 400))
             add(SceneStep.of(PressKey(TvKey.ENTER)))
         }
         return Scene(id = "busqueda", name = "Buscar $query", steps = steps)

@@ -23,6 +23,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Send
@@ -46,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import com.gabriel.tvmando.domain.SearchTarget
 import com.gabriel.tvmando.domain.TvApp
+import com.gabriel.tvmando.domain.matches
 import com.gabriel.tvmando.ui.SearchUiState
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.theme.Chalk
@@ -71,12 +73,14 @@ fun SearchScreen(
     apps: List<TvApp>,
     enabled: Boolean,
     onTargetChange: (SearchTarget) -> Unit,
+    onSlowTypingChange: (Boolean) -> Unit,
     onSearch: (String) -> Unit,
     onClearHistory: () -> Unit,
     haptics: (Tap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
+    var targetFilter by rememberSaveable { mutableStateOf("") }
     val keyboard = LocalSoftwareKeyboardController.current
 
     fun launch(text: String) {
@@ -94,17 +98,34 @@ fun SearchScreen(
         )
         Spacer(Modifier.height(10.dp))
 
+        // Con la tele llena de apps, la fila de destinos se vuelve un scroll infinito:
+        // el filtro solo aparece cuando de verdad estorba.
+        if (apps.size > FILTER_THRESHOLD) {
+            OutlinedTextField(
+                value = targetFilter,
+                onValueChange = { targetFilter = it.replace("\n", "") },
+                label = { Text("Filtrar apps") },
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Rounded.FilterList, contentDescription = null, tint = ChalkMuted)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val targets = remember(apps) {
+            val targets = remember(apps, targetFilter) {
                 buildList {
                     add(SearchTarget.GoogleTv)
                     add(SearchTarget.Focused)
-                    apps.forEach { add(SearchTarget.App(it.packageName, it.displayName)) }
+                    apps.filter { it.matches(targetFilter) }
+                        .forEach { add(SearchTarget.App(it.packageName, it.displayName)) }
                 }
             }
             targets.forEach { target ->
@@ -141,13 +162,41 @@ fun SearchScreen(
             SendButton(enabled = enabled && query.isNotBlank(), onClick = { launch(query) })
         }
 
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Chip(
+                label = "Letra a letra",
+                selected = state.slowTyping,
+                onClick = {
+                    haptics(Tap.Press)
+                    onSlowTypingChange(true)
+                },
+            )
+            Chip(
+                label = "Texto de golpe",
+                selected = !state.slowTyping,
+                onClick = {
+                    haptics(Tap.Press)
+                    onSlowTypingChange(false)
+                },
+            )
+        }
+
         Spacer(Modifier.height(8.dp))
 
         Text(
-            text = if (state.isTyping) {
-                "Enviando a la TV..."
-            } else {
-                "Se envia el texto y luego ENTER."
+            text = when {
+                state.isTyping -> "Enviando a la TV..."
+                state.slowTyping ->
+                    "Una tecla por letra, como el mando fisico. Es lo unico que entienden " +
+                        "los buscadores de Prime Video y compania. Sin tildes ni simbolos."
+                else ->
+                    "El texto entero de golpe: mas rapido y con tildes, pero hay apps que " +
+                        "solo se quedan con una letra o con ninguna."
             },
             style = MaterialTheme.typography.labelSmall,
             color = if (state.isTyping) Ember else ChalkFaint,
@@ -281,3 +330,6 @@ private fun HistoryRow(text: String, onClick: () -> Unit) {
         )
     }
 }
+
+/** A partir de aqui la fila de destinos ya no se recorre de un vistazo. */
+private const val FILTER_THRESHOLD = 6

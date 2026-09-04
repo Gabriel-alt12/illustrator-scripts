@@ -9,6 +9,18 @@ data class TvApp(
 )
 
 /**
+ * Coincidencia para los filtros de la UI. Busca en el nombre y tambien en el paquete,
+ * porque con la tele llena de apps a veces uno se acuerda antes de "amazon" que de
+ * "Prime Video", y porque las desconocidas solo tienen el paquete como pista.
+ */
+fun TvApp.matches(query: String): Boolean {
+    val clean = query.trim()
+    return clean.isEmpty() ||
+        displayName.contains(clean, ignoreCase = true) ||
+        packageName.contains(clean, ignoreCase = true)
+}
+
+/**
  * Traduce la salida cruda del shell de la TV a algo que se pueda pintar.
  *
  * La seccion 11 de la especificacion avisa de que los nombres de paquete cambian
@@ -72,6 +84,79 @@ object AppCatalog {
         "tv", "android", "androidtv", "app", "apps", "mobile", "client", "player",
         "leanback", "atv", "google", "avod", "thirdpartyclient", "livingroom",
         "mediaclient", "ninja", "firetv", "smarttv", "androidtvlauncher",
+    )
+
+    /**
+     * Equivalente en el movil de cada app de la TV, para poder sacar su icono real.
+     *
+     * Por ADB no hay forma barata de traerse el icono desde el televisor (haria falta
+     * aapt alli), pero muchas de estas apps estan tambien en el movil, y de ahi si se
+     * puede leer. Casi todas usan el mismo paquete en los dos sitios; las que no,
+     * estan aqui. Lo que no se encuentre se queda con su monograma, que tampoco pasa
+     * nada.
+     */
+    private val PHONE_PACKAGES: Map<String, String> = mapOf(
+        "com.netflix.ninja" to "com.netflix.mediaclient",
+        "com.google.android.youtube.tv" to "com.google.android.youtube",
+        "com.google.android.youtube.tvmusic" to "com.google.android.apps.youtube.music",
+        "com.spotify.tv.android" to "com.spotify.music",
+        "es.atresmedia.atresplayer.tv" to "es.atresmedia.atresplayer",
+        "com.movistarplus.androidtv" to "com.movistarplus.movistarplus",
+        "com.rtve.androidtv" to "es.rtve.rtveplay",
+        "com.mitele.tv" to "es.mediaset.mitele",
+        "com.filmin.androidtv" to "com.filmin.filmin",
+        "tv.twitch.android.viewer" to "tv.twitch.android.app",
+        "com.apple.atve.androidtv.appletv" to "com.apple.atve.android.appletv",
+        "com.google.android.apps.tv.launcherx" to "com.google.android.apps.nexuslauncher",
+    )
+
+    /**
+     * Nombre del paquete que hay que buscar en el movil para sacar el icono, o null si
+     * esta app no es de las que se pueden mirar. Solo se responden las conocidas
+     * porque el manifiesto declara justo esas en `<queries>`: preguntarle a Android por
+     * un paquete que no esta declarado devuelve "no instalado" aunque lo este.
+     */
+    fun phonePackageFor(tvPackage: String): String? = when {
+        tvPackage in PHONE_PACKAGES -> PHONE_PACKAGES[tvPackage]
+        tvPackage in KNOWN_NAMES -> tvPackage
+        else -> null
+    }
+
+    /**
+     * Color de marca en ARGB, o null si no se conoce. Va como Long y no como Color de
+     * Compose para no meter Android en esta capa, que se prueba en la JVM a secas.
+     */
+    fun brandColor(packageName: String): Long? = BRAND_COLORS[packageName]
+
+    /**
+     * Tonos sacados de la identidad de cada servicio, apagados un punto para que
+     * convivan sobre el fondo casi negro sin pelearse con el naranja de acento.
+     */
+    private val BRAND_COLORS: Map<String, Long> = mapOf(
+        "com.netflix.ninja" to 0xFF8C1116,
+        "com.netflix.mediaclient" to 0xFF8C1116,
+        "com.google.android.youtube.tv" to 0xFF8E1414,
+        "com.google.android.youtube.tvmusic" to 0xFF8E1414,
+        "com.amazon.avod.thirdpartyclient" to 0xFF15607A,
+        "com.amazon.amazonvideo.livingroom" to 0xFF15607A,
+        "com.disney.disneyplus" to 0xFF1B2A6B,
+        "com.wbd.stream" to 0xFF4A2380,
+        "com.hbo.hbonow" to 0xFF4A2380,
+        "com.spotify.tv.android" to 0xFF1A6B39,
+        "com.apple.atve.androidtv.appletv" to 0xFF3A3A3C,
+        "com.movistarplus.androidtv" to 0xFF14567A,
+        "es.atresmedia.atresplayer.tv" to 0xFF6B2340,
+        "com.rtve.androidtv" to 0xFF1E4E7A,
+        "com.mitele.tv" to 0xFF7A3A15,
+        "com.filmin.androidtv" to 0xFF2A2A6B,
+        "com.plexapp.android" to 0xFF8A6215,
+        "tv.twitch.android.app" to 0xFF5A2E96,
+        "tv.twitch.android.viewer" to 0xFF5A2E96,
+        "com.dazn" to 0xFF2E2E33,
+        "org.videolan.vlc" to 0xFF8A4A0F,
+        "org.xbmc.kodi" to 0xFF15607A,
+        "com.valvesoftware.steamlink" to 0xFF23324A,
+        "com.android.vending" to 0xFF15563E,
     )
 
     fun describe(packageName: String): TvApp {

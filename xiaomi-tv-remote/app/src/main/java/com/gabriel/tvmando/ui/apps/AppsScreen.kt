@@ -17,17 +17,26 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.FilterList
 import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.gabriel.tvmando.domain.TvApp
+import com.gabriel.tvmando.domain.matches
 import com.gabriel.tvmando.ui.AppsUiState
 import com.gabriel.tvmando.ui.components.AppTile
 import com.gabriel.tvmando.ui.components.GhostButton
@@ -65,6 +74,9 @@ fun AppsScreen(
         if (connected) onLoad()
     }
 
+    var filter by rememberSaveable { mutableStateOf("") }
+    val shown = remember(state.apps, filter) { state.apps.filter { it.matches(filter) } }
+
     Column(modifier = modifier.fillMaxSize()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -75,6 +87,8 @@ fun AppsScreen(
                     text = when {
                         state.isLoading -> "Buscando apps en la TV"
                         state.apps.isEmpty() -> "Sin apps todavia"
+                        shown.size != state.apps.size ->
+                            "${shown.size} de ${state.apps.size} apps"
                         else -> "${state.apps.size} apps instaladas"
                     },
                     style = MaterialTheme.typography.labelMedium,
@@ -96,7 +110,23 @@ fun AppsScreen(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(14.dp))
+
+        // El filtro solo sale cuando la rejilla ya es larga: en una TV con cuatro apps
+        // seria una caja de texto ocupando sitio para nada.
+        if (state.apps.size > FILTER_THRESHOLD) {
+            OutlinedTextField(
+                value = filter,
+                onValueChange = { filter = it.replace("\n", "") },
+                label = { Text("Buscar app") },
+                singleLine = true,
+                leadingIcon = {
+                    Icon(Icons.Rounded.FilterList, contentDescription = null, tint = ChalkMuted)
+                },
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Spacer(Modifier.height(14.dp))
+        }
 
         when {
             state.error != null && state.apps.isEmpty() -> EmptyState(
@@ -108,6 +138,12 @@ fun AppsScreen(
             !connected && state.apps.isEmpty() -> EmptyState(
                 title = "Sin conexion con la TV",
                 body = "En cuanto haya sesion ADB se cargan las apps instaladas.",
+                accent = Hairline,
+            )
+
+            shown.isEmpty() && state.apps.isNotEmpty() -> EmptyState(
+                title = "Ninguna app con ese nombre",
+                body = "Prueba con parte del nombre o del paquete.",
                 accent = Hairline,
             )
 
@@ -128,7 +164,7 @@ fun AppsScreen(
                 verticalArrangement = Arrangement.spacedBy(18.dp),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                items(items = state.apps, key = { it.packageName }) { app ->
+                items(items = shown, key = { it.packageName }) { app ->
                     AppTile(
                         app = app,
                         isForeground = app.packageName == state.foregroundPackage,
@@ -179,3 +215,6 @@ private fun EmptyState(
         }
     }
 }
+
+/** Por debajo de esto la rejilla se recorre de un vistazo y el filtro sobra. */
+private const val FILTER_THRESHOLD = 8

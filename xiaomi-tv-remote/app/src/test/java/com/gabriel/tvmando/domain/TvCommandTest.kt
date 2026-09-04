@@ -73,4 +73,39 @@ class TvCommandTest {
     fun `force-stop entrecomilla el paquete`() {
         assertEquals("am force-stop 'com.disney.disneyplus'", ForceStopApp("com.disney.disneyplus").shell)
     }
+
+    @Test
+    fun `escribir tecla a tecla manda un keyevent por letra en una sola llamada`() {
+        assertEquals(
+            "input keyevent KEYCODE_H KEYCODE_O KEYCODE_L KEYCODE_A",
+            TypeKeys("hola").shell,
+        )
+    }
+
+    @Test
+    fun `al teclear se quitan tildes y se ignoran mayusculas`() {
+        // Los buscadores de las teles no distinguen, y no hay keycode para "n con ene".
+        assertEquals(
+            "input keyevent KEYCODE_E KEYCODE_L KEYCODE_SPACE KEYCODE_S KEYCODE_E " +
+                "KEYCODE_N KEYCODE_O KEYCODE_R",
+            TypeKeys("El Señor").shell,
+        )
+    }
+
+    @Test
+    fun `los digitos y el espacio tienen su tecla`() {
+        assertEquals("input keyevent KEYCODE_2 KEYCODE_SPACE KEYCODE_A", TypeKeys("2 a").shell)
+    }
+
+    @Test
+    fun `lo que no se puede teclear se tira en vez de mandarse como basura`() {
+        assertEquals(listOf("KEYCODE_O", "KEYCODE_K"), TypeKeys("¿o.k?!").keycodes)
+    }
+
+    @Test
+    fun `sin nada que teclear no se manda un keyevent vacio`() {
+        // "input keyevent" a secas da error en la TV: mejor un comando que no hace nada.
+        assertEquals("true", TypeKeys("!!!").shell)
+        assertEquals("true", TypeKeys("").shell)
+    }
 }

@@ -1,5 +1,7 @@
 package com.gabriel.tvmando.domain
 
+import java.text.Normalizer
+
 /**
  * Catalogo de comandos de la seccion 5 de la especificacion.
  *
@@ -123,6 +125,30 @@ data class TypeText(val text: String) : TvCommand {
     override val label: String get() = "Escribir"
 }
 
+/**
+ * Escribe pulsando una tecla por letra en lugar de inyectar el texto de golpe.
+ *
+ * [TypeText] manda `input text`, que entrega la cadena entera de una vez. Los
+ * buscadores de las apps de television suelen ser rejillas de letras hechas a mano, no
+ * campos de texto normales, y con esa reyerta se quedan solo con una letra o con
+ * ninguna: Prime Video escribia una "a" y ya. Con `input keyevent` las teclas entran de
+ * una en una por el mismo camino que las del mando fisico, que es lo que esas
+ * pantallas si saben atender.
+ *
+ * Los keycodes van todos en una sola llamada a proposito: arrancar `input` en la TV
+ * cuesta un cuarto de segundo, y una llamada por letra convertiria una busqueda de
+ * diez letras en tres segundos de espera.
+ */
+data class TypeKeys(val text: String) : TvCommand {
+
+    val keycodes: List<String> = keycodesFor(text)
+
+    override val shell: String
+        get() = if (keycodes.isEmpty()) "true" else "input keyevent " + keycodes.joinToString(" ")
+
+    override val label: String get() = "Escribir"
+}
+
 /** Ajusta el brillo del panel (0-255). */
 data class SetBrightness(val value: Int) : TvCommand {
     override val shell: String get() = "settings put system screen_brightness ${value.coerceIn(0, 255)}"
@@ -196,4 +222,27 @@ data class RawShell(override val shell: String) : TvCommand {
  * con espacios o comillas rompe el comando si no se escapa. Comillas simples y el
  * truco clasico para la propia comilla simple.
  */
+/**
+ * Traduce texto a keycodes de `input keyevent`.
+ *
+ * Solo hay tecla para letras sin tilde, digitos y el espacio, asi que antes se pasa por
+ * un normalizador que deja "El Senor" a partir de "El Señor". Para buscar en una tele es
+ * justo lo que se quiere: los buscadores ignoran mayusculas y tildes, y lo que no se
+ * puede teclear vale mas tirarlo que mandarlo como basura.
+ */
+internal fun keycodesFor(text: String): List<String> =
+    Normalizer.normalize(text, Normalizer.Form.NFD)
+        .replace(DIACRITICS, "")
+        .lowercase()
+        .mapNotNull { char ->
+            when (char) {
+                in 'a'..'z' -> "KEYCODE_${char.uppercaseChar()}"
+                in '0'..'9' -> "KEYCODE_$char"
+                ' ' -> "KEYCODE_SPACE"
+                else -> null
+            }
+        }
+
+private val DIACRITICS = Regex("""\p{Mn}+""")
+
 internal fun String.shellQuoted(): String = "'" + replace("'", "'\\''") + "'"

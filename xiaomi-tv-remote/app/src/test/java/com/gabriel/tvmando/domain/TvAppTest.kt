@@ -2,6 +2,7 @@ package com.gabriel.tvmando.domain
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -164,5 +165,34 @@ class TvAppTest {
     fun `devuelve null si el dumpsys no trae actividad`() {
         assertNull(AppCatalog.parseForegroundPackage(""))
         assertNull(AppCatalog.parseForegroundPackage("mResumedActivity: null"))
+    }
+
+    @Test
+    fun `el filtro busca en el nombre y en el paquete`() {
+        val prime = AppCatalog.describe("com.amazon.avod.thirdpartyclient")
+        assertTrue(prime.matches(""))
+        assertTrue(prime.matches("prime"))
+        assertTrue(prime.matches("PRIME"))
+        // Lo que uno recuerda a veces es la marca del paquete, no el nombre comercial.
+        assertTrue(prime.matches("amazon"))
+        assertFalse(prime.matches("netflix"))
+    }
+
+    @Test
+    fun `el icono se busca en el paquete de movil correcto`() {
+        // Netflix cambia de nombre entre TV y movil; Prime Video usa el mismo.
+        assertEquals("com.netflix.mediaclient", AppCatalog.phonePackageFor("com.netflix.ninja"))
+        assertEquals(
+            "com.amazon.avod.thirdpartyclient",
+            AppCatalog.phonePackageFor("com.amazon.avod.thirdpartyclient"),
+        )
+        // Una app desconocida no se consulta: no esta declarada en el manifiesto.
+        assertNull(AppCatalog.phonePackageFor("com.ejemplo.rara"))
+    }
+
+    @Test
+    fun `las apps con color de marca lo tienen y las demas no`() {
+        assertNotNull(AppCatalog.brandColor("com.netflix.ninja"))
+        assertNull(AppCatalog.brandColor("com.ejemplo.rara"))
     }
 }
