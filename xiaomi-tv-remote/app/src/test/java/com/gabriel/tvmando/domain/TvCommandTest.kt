@@ -117,9 +117,17 @@ class TvCommandTest {
 
     @Test
     fun `la captura se decodifica aunque venga partida en lineas`() {
-        // "base64" de la TV corta la salida cada pocas decenas de caracteres.
-        val partido = "aG9sYSBt\ndW5kbyBl\nbiBiYXNlNjQ=\n"
-        assertEquals("hola mundo en base64", String(decodeScreenshot(partido)!!))
+        // "base64" de la TV corta la salida cada pocas decenas de caracteres. El
+        // fixture es un PNG de 1x1 de verdad: desde que se comprueba la firma, un
+        // texto cualquiera ya no vale para probar esto.
+        val partido = "iVBORw0KGgoAAAANSUhEUgAA\nAAEAAAABCAIAAACQd1PeAAAA\n" +
+            "DElEQVR4nGP4z8AAAAMBAQDJ\n/pLvAAAAAElFTkSuQmCC\n"
+
+        val bytes = decodeScreenshot(partido)!!
+
+        assertEquals(69, bytes.size)
+        assertEquals(0x89.toByte(), bytes[0])
+        assertEquals("PNG", String(bytes, 1, 3))
     }
 
     @Test
