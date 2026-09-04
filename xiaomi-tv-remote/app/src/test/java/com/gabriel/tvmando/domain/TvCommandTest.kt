@@ -1,6 +1,7 @@
 package com.gabriel.tvmando.domain
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -107,5 +108,24 @@ class TvCommandTest {
         // "input keyevent" a secas da error en la TV: mejor un comando que no hace nada.
         assertEquals("true", TypeKeys("!!!").shell)
         assertEquals("true", TypeKeys("").shell)
+    }
+
+    @Test
+    fun `la captura se pide en base64 para no traer binario por el shell`() {
+        assertEquals("screencap -p | base64", TvQuery.SCREENSHOT.shell)
+    }
+
+    @Test
+    fun `la captura se decodifica aunque venga partida en lineas`() {
+        // "base64" de la TV corta la salida cada pocas decenas de caracteres.
+        val partido = "aG9sYSBt\ndW5kbyBl\nbiBiYXNlNjQ=\n"
+        assertEquals("hola mundo en base64", String(decodeScreenshot(partido)!!))
+    }
+
+    @Test
+    fun `un error del shell en vez de una imagen no revienta`() {
+        assertNull(decodeScreenshot("screencap: permission denied"))
+        assertNull(decodeScreenshot(""))
+        assertNull(decodeScreenshot("   "))
     }
 }

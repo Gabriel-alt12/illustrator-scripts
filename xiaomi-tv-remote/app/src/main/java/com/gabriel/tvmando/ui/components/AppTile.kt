@@ -8,6 +8,7 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -18,12 +19,20 @@ import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.StarBorder
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,6 +43,8 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +52,7 @@ import androidx.core.graphics.drawable.toBitmap
 import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.ui.theme.Chalk
+import com.gabriel.tvmando.ui.theme.Ink
 import com.gabriel.tvmando.ui.theme.ChalkMuted
 import com.gabriel.tvmando.ui.theme.Ember
 import com.gabriel.tvmando.ui.theme.Hairline
@@ -54,19 +66,27 @@ import com.gabriel.tvmando.ui.theme.Hairline
  * misma app cae siempre en el mismo color y la rejilla se reconoce de un vistazo.
  *
  * Pulsacion larga = forzar el cierre, como pide la seccion 7 de la especificacion.
+ * La estrella de la esquina fija la app arriba en la rejilla.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AppTile(
     app: TvApp,
     isForeground: Boolean,
+    isFavorite: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
+    onToggleFavorite: () -> Unit,
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
     val context = LocalContext.current
-    val icon = remember(app.packageName) { phoneIcon(context, app.packageName) }
+    // Fuera del hilo principal: leer el icono es una llamada al sistema mas rasterizar
+    // un drawable, y con la rejilla llena serian veinte de esas en la misma pasada de
+    // composicion, justo al abrir la pestana.
+    val icon by produceState<ImageBitmap?>(null, app.packageName) {
+        value = withContext(Dispatchers.IO) { phoneIcon(context, app.packageName) }
+    }
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val scale by animateFloatAsState(
@@ -123,6 +143,27 @@ fun AppTile(
                     color = Chalk,
                 )
             }
+
+            // La estrella va encima de la ficha y no en un menu: fijar las cuatro apps
+            // de siempre es lo primero que se hace al ver la rejilla entera, y meterlo
+            // en la pulsacion larga chocaria con forzar el cierre.
+            Icon(
+                imageVector = if (isFavorite) Icons.Rounded.Star else Icons.Rounded.StarBorder,
+                contentDescription = if (isFavorite) {
+                    "Quitar ${app.displayName} de los fijados"
+                } else {
+                    "Fijar ${app.displayName} arriba"
+                },
+                tint = if (isFavorite) Ember else ChalkMuted,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .offset(x = (-4).dp, y = 4.dp)
+                    .clip(CircleShape)
+                    .background(Ink.copy(alpha = 0.55f))
+                    .clickable(onClick = onToggleFavorite)
+                    .padding(5.dp)
+                    .size(18.dp),
+            )
         }
 
         Spacer(Modifier.height(8.dp))
@@ -163,13 +204,27 @@ private fun monogram(displayName: String): String {
  * mitad, icono ilegible, paquete no declarado en `<queries>`) y ninguna merece
  * tumbar la rejilla: sin icono se pinta el monograma y ya.
  */
-private fun phoneIcon(context: Context, tvPackage: String): ImageBitmap? = runCatching {
-    val phonePackage = AppCatalog.phonePackageFor(tvPackage) ?: return null
-    context.packageManager
-        .getApplicationIcon(phonePackage)
-        .toBitmap(ICON_PX, ICON_PX)
-        .asImageBitmap()
-}.getOrNull()
+private fun phoneIcon(context: Context, tvPackage: String): ImageBitmap? =
+    iconCache.getOrPut(tvPackage) {
+        runCatching {
+            val phonePackage = AppCatalog.phonePackageFor(tvPackage)
+                ?: return@runCatching null
+            context.packageManager
+                .getApplicationIcon(phonePackage)
+                .toBitmap(ICON_PX, ICON_PX)
+                .asImageBitmap()
+        }.getOrNull() ?: Missing
+    }.takeIf { it !== Missing }
+
+/**
+ * Iconos ya resueltos, para no repetir la lectura cada vez que una ficha vuelve a
+ * componerse (al escribir en el filtro se recomponen todas). Guarda tambien las
+ * ausencias: preguntar por una app que no esta cuesta lo mismo que por una que si.
+ */
+private val iconCache = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
+
+/** Marca de "aqui no hay icono", para poder cachear tambien eso. */
+private val Missing: ImageBitmap = ImageBitmap(1, 1)
 
 /** Lado del icono en pixeles: de sobra para una ficha de la rejilla. */
 private const val ICON_PX = 144

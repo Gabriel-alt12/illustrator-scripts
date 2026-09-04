@@ -1,6 +1,7 @@
 package com.gabriel.tvmando.domain
 
 import java.text.Normalizer
+import java.util.Base64
 
 /**
  * Catalogo de comandos de la seccion 5 de la especificacion.
@@ -207,6 +208,16 @@ enum class TvQuery(override val shell: String, override val label: String) : TvC
         "App en primer plano",
     ),
     BRIGHTNESS("settings get system screen_brightness", "Brillo actual"),
+
+    /**
+     * Captura de lo que hay en la TV ahora mismo.
+     *
+     * `screencap -p` escupe un PNG binario, y el transporte de esta app entrega la
+     * salida como texto: pasarlo por `base64` en la propia TV evita tener que abrir un
+     * camino binario en la capa ADB solo para esto. Cuesta un tercio mas de bytes, que
+     * en la red de casa da igual.
+     */
+    SCREENSHOT("screencap -p | base64", "Captura de la TV"),
     WLAN("ip addr show wlan0", "Red"),
 }
 
@@ -215,13 +226,6 @@ data class RawShell(override val shell: String) : TvCommand {
     override val label: String get() = shell
 }
 
-/**
- * Entrecomilla para el shell de la TV.
- *
- * `input text` y `monkey` reciben el argumento a traves de `sh`, asi que un titulo
- * con espacios o comillas rompe el comando si no se escapa. Comillas simples y el
- * truco clasico para la propia comilla simple.
- */
 /**
  * Traduce texto a keycodes de `input keyevent`.
  *
@@ -245,4 +249,23 @@ internal fun keycodesFor(text: String): List<String> =
 
 private val DIACRITICS = Regex("""\p{Mn}+""")
 
+/**
+ * Deshace el base64 de [TvQuery.SCREENSHOT].
+ *
+ * Se usa el decodificador MIME y no el estricto porque `base64` de la TV parte la
+ * salida en lineas, y el estricto se atraganta con los saltos. Si lo que llega no es
+ * base64 (un error del shell, por ejemplo) se devuelve null en vez de reventar: quien
+ * llama ya tiene un sitio donde contarlo.
+ */
+fun decodeScreenshot(raw: String): ByteArray? = runCatching {
+    Base64.getMimeDecoder().decode(raw.trim())
+}.getOrNull()?.takeIf { it.isNotEmpty() }
+
+/**
+ * Entrecomilla para el shell de la TV.
+ *
+ * `input text` y `monkey` reciben el argumento a traves de `sh`, asi que un titulo
+ * con espacios o comillas rompe el comando si no se escapa. Comillas simples y el
+ * truco clasico para la propia comilla simple.
+ */
 internal fun String.shellQuoted(): String = "'" + replace("'", "'\\''") + "'"

@@ -100,7 +100,7 @@ fun SearchScreen(
 
         // Con la tele llena de apps, la fila de destinos se vuelve un scroll infinito:
         // el filtro solo aparece cuando de verdad estorba.
-        if (apps.size > FILTER_THRESHOLD) {
+        if (apps.size > FILTER_THRESHOLD || targetFilter.isNotEmpty()) {
             OutlinedTextField(
                 value = targetFilter,
                 onValueChange = { targetFilter = it.replace("\n", "") },
@@ -120,12 +120,17 @@ fun SearchScreen(
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            val targets = remember(apps, targetFilter) {
+            val targets = remember(apps, targetFilter, state.target) {
                 buildList {
                     add(SearchTarget.GoogleTv)
                     add(SearchTarget.Focused)
-                    apps.filter { it.matches(targetFilter) }
-                        .forEach { add(SearchTarget.App(it.packageName, it.displayName)) }
+                    // El destino activo se queda siempre a la vista aunque el filtro
+                    // no lo case: si no, uno acaba buscando en Netflix convencido de
+                    // que busca en Google TV, porque no queda ningun chip marcado.
+                    apps.filter { app ->
+                        app.matches(targetFilter) ||
+                            (state.target as? SearchTarget.App)?.packageName == app.packageName
+                    }.forEach { add(SearchTarget.App(it.packageName, it.displayName)) }
                 }
             }
             targets.forEach { target ->

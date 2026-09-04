@@ -174,6 +174,17 @@ sealed interface SearchTarget {
             GoogleTv -> "Buscador de Google TV"
             is App -> displayName
         }
+
+    /**
+     * Identificador estable para recordar ajustes por destino. Va por paquete y no
+     * por nombre porque el nombre visible cambia si mejora el catalogo.
+     */
+    val key: String
+        get() = when (this) {
+            Focused -> "focused"
+            GoogleTv -> "googletv"
+            is App -> "app:" + packageName
+        }
 }
 
 /**

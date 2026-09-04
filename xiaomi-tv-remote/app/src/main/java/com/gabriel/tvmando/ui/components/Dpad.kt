@@ -46,6 +46,9 @@ import com.gabriel.tvmando.ui.theme.InkRaised
  * Es la pieza mas grande de la app a proposito: se navega por menus de la TV sin
  * mirar el movil, asi que cada zona tiene 64 dp de lado (por encima de los 48 dp
  * minimos) y el OK queda en el centro geometrico, donde cae el pulgar por defecto.
+ *
+ * Las flechas repiten al mantenerlas pulsadas; el OK no, que confirmar dos veces sin
+ * querer se paga caro.
  */
 @Composable
 fun Dpad(
@@ -88,6 +91,9 @@ private fun BoxScope.Direction(
         label = "dpad-bg",
     )
     val tint by animateColorAsState(if (pressed) Ember else Chalk, label = "dpad-tint")
+
+    // Mantener una flecha la repite: recorrer un menu largo sin machacar el dedo.
+    RepeatWhilePressed(pressed = pressed, enabled = enabled, onRepeat = onClick)
 
     Box(
         modifier = Modifier

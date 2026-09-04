@@ -23,14 +23,15 @@ import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.domain.TvCommand
 import com.gabriel.tvmando.domain.TvController
 import com.gabriel.tvmando.domain.TvQuery
+import com.gabriel.tvmando.domain.decodeScreenshot
 import com.gabriel.tvmando.system.GuestRemoteServer
 import com.gabriel.tvmando.system.GuestRemoteState
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -63,6 +64,10 @@ data class AppsUiState(
     val foregroundPackage: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
+    /** Paquetes fijados arriba en la rejilla. */
+    val favorites: Set<String> = emptySet(),
+    /** De donde se venia al abrir la de ahora, para poder volver de un toque. */
+    val previousApp: TvApp? = null,
 ) {
     val hasLoaded: Boolean get() = apps.isNotEmpty()
 }
@@ -71,6 +76,16 @@ data class AppsUiState(
 data class ScenesUiState(
     val scenes: List<Scene> = emptyList(),
     val running: SceneProgress? = null,
+)
+
+/**
+ * Ultima captura de la TV. No es data class a proposito: lleva un ByteArray, y la
+ * igualdad por contenido no aporta nada aqui.
+ */
+class ScreenshotUiState(
+    val image: ByteArray? = null,
+    val isLoading: Boolean = false,
+    val error: String? = null,
 )
 
 /** Estado de la pantalla de Busqueda. */
@@ -102,11 +117,24 @@ class MandoViewModel(
     private val fingerprint = MutableStateFlow("")
 
     private val _appsState = MutableStateFlow(AppsUiState())
-    val appsState: StateFlow<AppsUiState> = _appsState.asStateFlow()
+    private val previousApp = MutableStateFlow<TvApp?>(null)
+
+    /** Lo ultimo que se abrio desde aqui, para saber de donde se viene. */
+    private var lastLaunched: TvApp? = null
+
+    val appsState: StateFlow<AppsUiState> = combine(
+        _appsState,
+        settings.favorites,
+        previousApp,
+    ) { apps, favorites, previous ->
+        apps.copy(favorites = favorites, previousApp = previous)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppsUiState())
+
+    private val _screenshot = MutableStateFlow(ScreenshotUiState())
+    val screenshot: StateFlow<ScreenshotUiState> = _screenshot
 
     private val sceneProgress = MutableStateFlow<SceneProgress?>(null)
     private val searchTarget = MutableStateFlow<SearchTarget>(SearchTarget.GoogleTv)
-    private val slowTyping = MutableStateFlow(true)
     private var sceneJob: Job? = null
 
     /**
@@ -144,13 +172,14 @@ class MandoViewModel(
         settings.searchHistory,
         searchTarget,
         sceneProgress,
-        slowTyping,
-    ) { history, target, progress, slowly ->
+        settings.fastTypingTargets,
+    ) { history, target, progress, fastTargets ->
         SearchUiState(
             history = history,
             target = target,
             isTyping = progress?.scene?.id == SEARCH_SCENE_ID,
-            slowTyping = slowly,
+            // Tecla a tecla salvo que este destino este apuntado como excepcion.
+            slowTyping = target.key !in fastTargets,
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchUiState())
 
@@ -181,6 +210,38 @@ class MandoViewModel(
             controller.connect().onFailure {
                 feedback.value = Feedback(it.message ?: "No se pudo conectar", isError = true)
             }
+        }
+    }
+
+    /**
+     * Trae una foto de lo que hay en la TV.
+     *
+     * Va a peticion y no en bucle: cada captura son un par de megas de PNG en base64,
+     * y refrescarla sola cada pocos segundos cargaria la red de casa para algo que se
+     * mira de reojo. Sirve sobre todo para ver si el texto esta entrando de verdad
+     * cuando se escribe a ciegas.
+     */
+    fun captureScreen() {
+        viewModelScope.launch {
+            _screenshot.value = ScreenshotUiState(
+                image = _screenshot.value.image,
+                isLoading = true,
+            )
+            _screenshot.value = controller.run(TvQuery.SCREENSHOT).fold(
+                onSuccess = { raw ->
+                    val bytes = decodeScreenshot(raw)
+                    ScreenshotUiState(
+                        image = bytes ?: _screenshot.value.image,
+                        error = if (bytes == null) "La TV no devolvio una imagen" else null,
+                    )
+                },
+                onFailure = { error ->
+                    ScreenshotUiState(
+                        image = _screenshot.value.image,
+                        error = error.message ?: "No se pudo capturar la pantalla",
+                    )
+                },
+            )
         }
     }
 
@@ -240,6 +301,16 @@ class MandoViewModel(
     }
 
     fun launchApp(app: TvApp) {
+        // De donde se viene: lo que hubiera en pantalla, y si no lo sabemos, lo ultimo
+        // que se abrio desde aqui. Sirve para el boton de volver.
+        val leaving = _appsState.value.apps
+            .firstOrNull { it.packageName == _appsState.value.foregroundPackage }
+            ?: lastLaunched
+        if (leaving != null && leaving.packageName != app.packageName) {
+            previousApp.value = leaving
+        }
+        lastLaunched = app
+
         viewModelScope.launch {
             sending.value = true
             val result = controller.run(LaunchApp(app.packageName))
@@ -251,6 +322,11 @@ class MandoViewModel(
             )
             refreshForegroundApp()
         }
+    }
+
+    /** Fija o quita una app de la cabecera de la rejilla. */
+    fun toggleFavorite(app: TvApp) {
+        viewModelScope.launch { settings.toggleFavorite(app.packageName) }
     }
 
     fun forceStopApp(app: TvApp) {
@@ -327,23 +403,31 @@ class MandoViewModel(
         searchTarget.value = target
     }
 
+
+    /**
+     * Cambia como se teclea en el destino elegido ahora mismo, y lo recuerda para la
+     * proxima vez: por defecto se va tecla a tecla, que es lo unico que entienden los
+     * buscadores de varias apps de television, pero donde el texto de golpe funcione
+     * no hay que volver a decirlo.
+     */
+    fun setSlowTyping(enabled: Boolean) {
+        val target = searchTarget.value
+        viewModelScope.launch { settings.setFastTyping(target.key, fast = !enabled) }
+    }
+
     /**
      * Buscar es una escena efimera: abrir donde toque, esperar, escribir y aceptar.
      * Se reutiliza el motor de escenas para no duplicar la logica de los retardos.
      */
-    /**
-     * Cambia como se teclea. Ver [SceneLibrary.search]: por defecto va tecla a tecla,
-     * que es lo unico que entienden los buscadores de varias apps de television.
-     */
-    fun setSlowTyping(enabled: Boolean) {
-        slowTyping.value = enabled
-    }
-
     fun search(query: String) {
         val clean = query.trim().replace('\n', ' ')
         if (clean.isEmpty()) return
-        viewModelScope.launch { settings.rememberSearch(clean) }
-        runScene(SceneLibrary.search(clean, searchTarget.value, slowTyping.value))
+        val target = searchTarget.value
+        viewModelScope.launch {
+            settings.rememberSearch(clean)
+            val fast = target.key in settings.fastTypingTargets.first()
+            runScene(SceneLibrary.search(clean, target, slowly = !fast))
+        }
     }
 
     fun clearSearchHistory() {

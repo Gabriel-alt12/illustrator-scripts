@@ -12,17 +12,21 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.Undo
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -45,6 +49,7 @@ import com.gabriel.tvmando.ui.theme.Alert
 import com.gabriel.tvmando.ui.theme.Chalk
 import com.gabriel.tvmando.ui.theme.ChalkFaint
 import com.gabriel.tvmando.ui.theme.ChalkMuted
+import com.gabriel.tvmando.ui.theme.Ember
 import com.gabriel.tvmando.ui.theme.Hairline
 import com.gabriel.tvmando.ui.theme.InkRaised
 
@@ -66,6 +71,7 @@ fun AppsScreen(
     onRefresh: () -> Unit,
     onLaunch: (TvApp) -> Unit,
     onForceStop: (TvApp) -> Unit,
+    onToggleFavorite: (TvApp) -> Unit,
     haptics: (Tap) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -75,7 +81,13 @@ fun AppsScreen(
     }
 
     var filter by rememberSaveable { mutableStateOf("") }
-    val shown = remember(state.apps, filter) { state.apps.filter { it.matches(filter) } }
+    // Las fijadas suben; dentro de cada grupo se respeta el orden del catalogo, que
+    // ya pone delante lo que se usa a diario.
+    val shown = remember(state.apps, filter, state.favorites) {
+        state.apps
+            .filter { it.matches(filter) }
+            .sortedByDescending { it.packageName in state.favorites }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -110,11 +122,38 @@ fun AppsScreen(
             )
         }
 
+        // Saltar entre dos apps es lo que mas se repite, y por el camino largo son
+        // tres pasos: inicio, buscar la ficha y abrirla.
+        state.previousApp?.let { previous ->
+            TextButton(
+                onClick = {
+                    haptics(Tap.Confirm)
+                    onLaunch(previous)
+                },
+                contentPadding = PaddingValues(horizontal = 4.dp),
+            ) {
+                Icon(
+                    Icons.Rounded.Undo,
+                    contentDescription = null,
+                    tint = Ember,
+                    modifier = Modifier.size(16.dp),
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Volver a ${previous.displayName}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = Ember,
+                )
+            }
+        }
+
         Spacer(Modifier.height(14.dp))
 
         // El filtro solo sale cuando la rejilla ya es larga: en una TV con cuatro apps
         // seria una caja de texto ocupando sitio para nada.
-        if (state.apps.size > FILTER_THRESHOLD) {
+        // La condicion incluye el filtro escrito: si la lista encoge por debajo del
+        // umbral con algo puesto, la caja tiene que seguir ahi para poder borrarlo.
+        if (state.apps.size > FILTER_THRESHOLD || filter.isNotEmpty()) {
             OutlinedTextField(
                 value = filter,
                 onValueChange = { filter = it.replace("\n", "") },
@@ -168,6 +207,7 @@ fun AppsScreen(
                     AppTile(
                         app = app,
                         isForeground = app.packageName == state.foregroundPackage,
+                        isFavorite = app.packageName in state.favorites,
                         enabled = enabled,
                         onClick = {
                             haptics(Tap.Confirm)
@@ -176,6 +216,10 @@ fun AppsScreen(
                         onLongClick = {
                             haptics(Tap.Reject)
                             onForceStop(app)
+                        },
+                        onToggleFavorite = {
+                            haptics(Tap.Press)
+                            onToggleFavorite(app)
                         },
                     )
                 }

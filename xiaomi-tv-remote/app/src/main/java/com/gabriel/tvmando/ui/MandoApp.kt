@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
@@ -24,6 +26,7 @@ import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsRemote
+import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -40,7 +43,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import android.graphics.BitmapFactory
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
@@ -90,10 +95,12 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     val scenesState by viewModel.scenesState.collectAsStateWithLifecycle()
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
     val guestState by viewModel.guestState.collectAsStateWithLifecycle()
+    val screenshot by viewModel.screenshot.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
 
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
+    var showScreen by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val askNotifications = rememberLauncherForActivityResult(
@@ -137,6 +144,11 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                 haptics(Tap.Press)
                 showSettings = true
             },
+            onSeeScreen = {
+                haptics(Tap.Press)
+                showScreen = true
+                viewModel.captureScreen()
+            },
         )
 
         state.banner()?.let { banner ->
@@ -171,6 +183,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     onRefresh = { viewModel.loadApps(force = true) },
                     onLaunch = viewModel::launchApp,
                     onForceStop = viewModel::forceStopApp,
+                    onToggleFavorite = viewModel::toggleFavorite,
                     haptics = haptics,
                 )
 
@@ -252,6 +265,17 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
         }
     }
 
+    if (showScreen) {
+        ScreenDialog(
+            state = screenshot,
+            onRefresh = {
+                haptics(Tap.Press)
+                viewModel.captureScreen()
+            },
+            onDismiss = { showScreen = false },
+        )
+    }
+
     if (showSettings) {
         EndpointDialog(
             host = state.settings.host,
@@ -294,6 +318,7 @@ private fun Header(
     destination: Destination,
     onReconnect: () -> Unit,
     onSettings: () -> Unit,
+    onSeeScreen: () -> Unit,
 ) {
     val status = state.connection.asStatus(state.settings.isConfigured)
 
@@ -309,6 +334,8 @@ private fun Header(
         )
         Spacer(Modifier.width(10.dp))
         GhostButton(onClick = onReconnect, icon = Icons.Rounded.Refresh, description = "Reconectar")
+        Spacer(Modifier.width(10.dp))
+        GhostButton(onClick = onSeeScreen, icon = Icons.Rounded.Tv, description = "Ver la pantalla de la TV")
         Spacer(Modifier.width(10.dp))
         GhostButton(onClick = onSettings, icon = Icons.Rounded.Settings, description = "Ajustes")
     }
@@ -327,6 +354,69 @@ private fun Header(
             color = Ember,
         )
     }
+}
+
+/**
+ * Lo que hay en la TV ahora mismo.
+ *
+ * Existe sobre todo para escribir sin mirar la television: hasta ahora, al mandar
+ * texto no habia forma de saber si estaba entrando hasta levantar la vista.
+ */
+@Composable
+private fun ScreenDialog(
+    state: ScreenshotUiState,
+    onRefresh: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val bitmap = remember(state.image) {
+        state.image?.let { bytes ->
+            runCatching { BitmapFactory.decodeByteArray(bytes, 0, bytes.size) }
+                .getOrNull()
+                ?.asImageBitmap()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = InkRaised,
+        title = {
+            Text("Pantalla de la TV", style = MaterialTheme.typography.titleLarge, color = Chalk)
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap,
+                        contentDescription = "Lo que se ve en la television",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9f)
+                            .clip(RoundedCornerShape(12.dp)),
+                    )
+                }
+                Text(
+                    text = when {
+                        state.isLoading -> "Pidiendo la captura..."
+                        state.error != null -> state.error
+                        bitmap != null -> "Toca actualizar para volver a mirar."
+                        else -> "Todavia no hay ninguna captura."
+                    },
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (state.error != null) Alert else ChalkFaint,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onRefresh, enabled = !state.isLoading) {
+                Text("Actualizar", color = Ember)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cerrar", color = ChalkMuted)
+            }
+        },
+    )
 }
 
 /** Aviso contextual: lo que hay que hacer ahora mismo, en una frase. */

@@ -93,6 +93,49 @@ class SettingsRepository(private val context: Context) {
         context.dataStore.edit { prefs -> prefs.remove(KEY_SCENES) }
     }
 
+    // --- favoritos ----------------------------------------------------------
+
+    /**
+     * Apps fijadas arriba en la rejilla.
+     *
+     * Con la tele entera a la vista son cuarenta y pico fichas, y las cuatro de
+     * siempre se pierden entre ellas. Se guardan los paquetes y no un indice porque
+     * la lista cambia sola cada vez que se instala algo en la TV.
+     */
+    val favorites: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FAVORITES]?.split('\n')?.filter { it.isNotBlank() }?.toSet().orEmpty()
+    }
+
+    suspend fun toggleFavorite(packageName: String) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_FAVORITES]?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+            val updated = if (packageName in current) current - packageName else current + packageName
+            prefs[KEY_FAVORITES] = updated.joinToString("\n")
+        }
+    }
+
+    // --- modo de escritura por destino --------------------------------------
+
+    /**
+     * Destinos donde se manda el texto de golpe en vez de tecla a tecla.
+     *
+     * Lo normal es lo segundo, que es lo unico que entienden los buscadores caseros
+     * de las apps de TV, asi que aqui solo se apuntan las excepciones: si Netflix
+     * acepta el texto entero y Prime Video no, cada uno se recuerda como es y no hay
+     * que cambiarlo a mano cada vez.
+     */
+    val fastTypingTargets: Flow<Set<String>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_FAST_TYPING]?.split('\n')?.filter { it.isNotBlank() }?.toSet().orEmpty()
+    }
+
+    suspend fun setFastTyping(targetKey: String, fast: Boolean) {
+        context.dataStore.edit { prefs ->
+            val current = prefs[KEY_FAST_TYPING]?.split('\n')?.filter { it.isNotBlank() }.orEmpty()
+            val updated = if (fast) current + targetKey else current - targetKey
+            prefs[KEY_FAST_TYPING] = updated.distinct().joinToString("\n")
+        }
+    }
+
     // --- historial de busquedas --------------------------------------------
 
     val searchHistory: Flow<List<String>> = context.dataStore.data.map { prefs ->
@@ -149,6 +192,8 @@ class SettingsRepository(private val context: Context) {
         val KEY_HOST = stringPreferencesKey("tv_host")
         val KEY_SCENES = stringPreferencesKey("scenes")
         val KEY_SEARCH_HISTORY = stringPreferencesKey("search_history")
+        val KEY_FAVORITES = stringPreferencesKey("favorite_apps")
+        val KEY_FAST_TYPING = stringPreferencesKey("fast_typing_targets")
         val KEY_PORT = intPreferencesKey("tv_port")
         val KEY_MODEL = stringPreferencesKey("tv_model")
         val KEY_PERSISTENT_REMOTE = booleanPreferencesKey("persistent_remote")

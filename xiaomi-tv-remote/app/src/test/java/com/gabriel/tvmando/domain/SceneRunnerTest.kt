@@ -122,7 +122,7 @@ class SceneRunnerTest {
         assertEquals(
             listOf(
                 LaunchApp("com.netflix.mediaclient").shell,
-                "input text 'el senor de los anillos'",
+                TypeKeys("el senor de los anillos").shell,
                 "input keyevent KEYCODE_ENTER",
             ),
             ejecutados,
@@ -136,7 +136,7 @@ class SceneRunnerTest {
         assertEquals(
             listOf(
                 "input keyevent KEYCODE_ASSIST",
-                "input text 'dune'",
+                TypeKeys("dune").shell,
                 "input keyevent KEYCODE_ENTER",
             ),
             ejecutados,
@@ -148,7 +148,7 @@ class SceneRunnerTest {
         runner().run(SceneLibrary.search("dune", SearchTarget.Focused))
 
         assertEquals(
-            listOf("input text 'dune'", "input keyevent KEYCODE_ENTER"),
+            listOf(TypeKeys("dune").shell, "input keyevent KEYCODE_ENTER"),
             ejecutados,
         )
     }

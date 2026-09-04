@@ -145,6 +145,8 @@ fun PowerKey(
 /**
  * Barra de volumen: una pieza ancha partida en tres zonas (bajar, silenciar, subir).
  * Horizontal porque asi cabe entera bajo el pulgar sin mover la mano.
+ *
+ * Subir y bajar repiten al mantenerlas: diez puntos de volumen no son diez toques.
  */
 @Composable
 fun VolumeBar(
@@ -166,11 +168,11 @@ fun VolumeBar(
             .border(1.dp, Hairline, RoundedCornerShape(28.dp)),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        VolumeZone(onDown, iconDown, "Bajar volumen", enabled, Modifier.weight(1f))
+        VolumeZone(onDown, iconDown, "Bajar volumen", enabled, Modifier.weight(1f), repeats = true)
         Divider()
         VolumeZone(onMute, iconMute, "Silenciar", enabled, Modifier.weight(0.8f))
         Divider()
-        VolumeZone(onUp, iconUp, "Subir volumen", enabled, Modifier.weight(1f))
+        VolumeZone(onUp, iconUp, "Subir volumen", enabled, Modifier.weight(1f), repeats = true)
     }
 }
 
@@ -191,9 +193,14 @@ private fun VolumeZone(
     description: String,
     enabled: Boolean,
     modifier: Modifier = Modifier,
+    repeats: Boolean = false,
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
+
+    // Subir y bajar se mantienen pulsados; silenciar no, que es un interruptor y
+    // repetirlo lo unico que hace es dejarlo como estaba.
+    if (repeats) RepeatWhilePressed(pressed = pressed, enabled = enabled, onRepeat = onClick)
     val tint by animateColorAsState(if (pressed) Ember else Chalk, label = "vol-tint")
     val background by animateColorAsState(
         if (pressed) EmberSunk else Color.Transparent,

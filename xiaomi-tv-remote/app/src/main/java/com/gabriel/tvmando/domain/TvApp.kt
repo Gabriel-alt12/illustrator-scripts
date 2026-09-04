@@ -97,6 +97,8 @@ object AppCatalog {
      */
     private val PHONE_PACKAGES: Map<String, String> = mapOf(
         "com.netflix.ninja" to "com.netflix.mediaclient",
+        // La variante de Fire TV no existe en el movil: su icono es el del otro paquete.
+        "com.amazon.amazonvideo.livingroom" to "com.amazon.avod.thirdpartyclient",
         "com.google.android.youtube.tv" to "com.google.android.youtube",
         "com.google.android.youtube.tvmusic" to "com.google.android.apps.youtube.music",
         "com.spotify.tv.android" to "com.spotify.music",

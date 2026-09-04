@@ -89,4 +89,25 @@ class SceneCodecTest {
         val escena = SceneLibrary.defaults().single { it.id == "silencio" }
         assertEquals(0L, escena.totalDurationMs)
     }
+
+    @Test
+    fun `cada destino de busqueda tiene una clave estable`() {
+        // La clave viaja al DataStore para recordar como se teclea en cada sitio: si
+        // cambia, se pierde lo aprendido.
+        assertEquals("googletv", SearchTarget.GoogleTv.key)
+        assertEquals("focused", SearchTarget.Focused.key)
+        assertEquals(
+            "app:com.netflix.ninja",
+            SearchTarget.App("com.netflix.ninja", "Netflix").key,
+        )
+    }
+
+    @Test
+    fun `la clave del destino no depende del nombre visible`() {
+        // El nombre cambia si mejora el catalogo; el ajuste recordado no debe irse con el.
+        assertEquals(
+            SearchTarget.App("com.dazn", "DAZN").key,
+            SearchTarget.App("com.dazn", "Dazn Espana").key,
+        )
+    }
 }
