@@ -28,6 +28,10 @@ jobs:
     env:
       # Vacio si no se han configurado los secretos: entonces se compila sin firmar.
       KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+      # Donde las herramientas de Android guardan sus preferencias, la clave de
+      # depuracion incluida. Se fija a una ruta conocida para poder cachearla: la
+      # primera vez, la cache busco ~/.android y no habia nada.
+      ANDROID_USER_HOME: ${{ github.workspace }}/.android
 
     steps:
       - uses: actions/checkout@v4
@@ -49,8 +53,11 @@ jobs:
         if: env.KEYSTORE_BASE64 == ''
         uses: actions/cache@v4
         with:
-          path: ~/.android/debug.keystore
+          path: ${{ env.ANDROID_USER_HOME }}/debug.keystore
           key: debug-keystore-v1
+
+      - name: Carpeta de preferencias de Android
+        run: mkdir -p "$ANDROID_USER_HOME"
 
       # Con los secretos puestos, la firma es propia y no depende de ninguna cache.
       - name: Preparar la firma
@@ -76,6 +83,17 @@ jobs:
             ./gradlew --no-daemon :app:assembleDebug
             echo "APK=xiaomi-tv-remote/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
           fi
+
+      # Si la clave no esta donde la busca la cache, la siguiente version obligara a
+      # desinstalar: mejor verlo en el log que descubrirlo en el movil.
+      - name: Comprobar la clave de depuracion
+        if: env.KEYSTORE_BASE64 == ''
+        run: |
+          ls -la "$ANDROID_USER_HOME" || true
+          test -f "$ANDROID_USER_HOME/debug.keystore" && echo "clave en su sitio" || {
+            echo "::warning::la clave de depuracion no esta en $ANDROID_USER_HOME"
+            find /home /tmp -name debug.keystore 2>/dev/null || true
+          }
 
       # La etiqueta no cambia nunca: asi el enlace de descarga se puede guardar en
       # marcadores y siempre apunta a lo ultimo.
