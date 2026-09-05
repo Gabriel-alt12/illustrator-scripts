@@ -300,10 +300,24 @@ class GuestRemoteServer(
             <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
             <title>Ember</title>
             <style>
-              :root { color-scheme: dark; }
+              /* La misma paleta que la app, por papeles: ink es el fondo y chalk el
+                 texto sean del color que sean. Sigue al tema del movil de la visita. */
+              :root {
+                color-scheme: light dark;
+                --ink: #08090C; --raised: #11131A; --high: #1A1D26; --hair: #272B36;
+                --chalk: #F2F3F5; --muted: #858C9B;
+                --ember: #FF5A1F; --glow: rgba(255, 90, 31, .45);
+              }
+              @media (prefers-color-scheme: light) {
+                :root {
+                  --ink: #F3EFE8; --raised: #FFFFFF; --high: #EAE5DC; --hair: #DAD3C8;
+                  --chalk: #17181C; --muted: #5F646F;
+                  --ember: #C93E0E; --glow: rgba(201, 62, 14, .35);
+                }
+              }
               * { box-sizing: border-box; }
               body {
-                margin: 0; min-height: 100vh; background: #0d0f12; color: #f2f3f5;
+                margin: 0; min-height: 100vh; background: var(--ink); color: var(--chalk);
                 font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
                 display: flex; flex-direction: column; align-items: center;
                 gap: 16px; padding: 22px 18px 34px;
@@ -311,16 +325,26 @@ class GuestRemoteServer(
                 -webkit-tap-highlight-color: transparent;
               }
               h1 {
-                margin: 0; font-size: 12px; letter-spacing: .2em;
-                text-transform: uppercase; color: #ff5a1f;
+                margin: 0; font-size: 26px; font-weight: 800; letter-spacing: -.02em;
+                line-height: 1; text-align: center;
+              }
+              h1 small {
+                display: block; margin-top: 6px; font-size: 11px; font-weight: 700;
+                letter-spacing: .2em; text-transform: uppercase; color: var(--muted);
               }
               .dial {
                 position: relative; width: 258px; height: 258px; border-radius: 50%;
-                background: #16191e; border: 1px solid #2a2f37;
+                background: var(--raised); border: 1px solid var(--hair);
+              }
+              button {
+                color: var(--chalk); cursor: pointer;
+                /* Luz, no pintura: al pulsar se enciende un anillo con halo y al
+                   soltar se apaga despacio, como en la app. */
+                transition: box-shadow .45s ease-out, color .45s ease-out;
               }
               .dial button {
                 position: absolute; width: 72px; height: 72px; border-radius: 50%;
-                background: none; border: 0; color: #f2f3f5; font-size: 24px;
+                background: none; border: 0; font-size: 24px;
               }
               .up { top: 8px; left: 93px; }
               .down { bottom: 8px; left: 93px; }
@@ -328,23 +352,26 @@ class GuestRemoteServer(
               .right { right: 8px; top: 93px; }
               .ok {
                 left: 84px; top: 84px; width: 90px; height: 90px;
-                background: #1c2027; border: 2px solid #2a2f37;
-                font-size: 14px; letter-spacing: .12em;
+                background: var(--high); border: 2px solid var(--hair);
+                font-size: 14px; font-weight: 700; letter-spacing: .12em;
               }
               .row { display: flex; gap: 12px; width: 100%; max-width: 300px; }
               .row button {
-                flex: 1; height: 60px; border-radius: 18px; background: #16191e;
-                border: 1px solid #2a2f37; color: #f2f3f5; font-size: 20px;
+                flex: 1; height: 60px; border-radius: 20px; background: var(--raised);
+                border: 1px solid var(--hair); font-size: 20px;
               }
-              button:active { background: #3a1a0d; border-color: #ff5a1f; color: #ff5a1f; }
+              button:active {
+                color: var(--ember); transition: none;
+                box-shadow: 0 0 0 2px var(--ember), 0 0 18px 4px var(--glow);
+              }
               .note {
                 font-size: 11px; letter-spacing: .12em; text-transform: uppercase;
-                color: #8b929c; min-height: 14px;
+                color: var(--muted); min-height: 14px;
               }
             </style>
             </head>
             <body>
-              <h1>Mando invitado</h1>
+              <h1>Ember<small>Mando invitado</small></h1>
               <div class="dial">
                 <button class="up" data-k="DPAD_UP">&#9650;</button>
                 <button class="down" data-k="DPAD_DOWN">&#9660;</button>

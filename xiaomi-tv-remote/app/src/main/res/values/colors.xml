@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Marca: fijos, no siguen el tema del sistema. Los usan el icono y el arranque. -->
     <color name="ink">#FF08090C</color>
     <color name="ember">#FFFF5A1F</color>
+
+    <!-- Widget y notificacion: viven en la pantalla del movil y siguen su tema, no el
+         de la app (values-night trae el oscuro). Son los mismos papeles que la paleta
+         de Compose, ver ui/theme/Color.kt. -->
+    <color name="widget_ink">#F0F3EFE8</color>
+    <color name="widget_ink_high">#FFEAE5DC</color>
+    <color name="widget_hairline">#FFDAD3C8</color>
+    <color name="widget_chalk">#FF17181C</color>
+    <color name="widget_ember">#FFC93E0E</color>
+    <color name="widget_ember_sunk">#FFFBE6DC</color>
 </resources>

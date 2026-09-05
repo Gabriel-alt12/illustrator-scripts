@@ -1,14 +1,40 @@
 # Ember — mando para la Xiaomi TV S Mini LED
 
-App Android (antes llamada «Mando TV») para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en red
+App Android para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en red
 local. Kotlin + Jetpack Compose, MVVM, DataStore. Sin backend, sin cuentas, sin
-internet: todo local.
+internet: todo local. Antes se llamaba «Mando TV»; el paquete sigue siendo
+`com.gabriel.tvmando`, así que se instala encima.
 
-**Estado: fases 2 a 5 completas.** Cliente ADB propio, mando completo (D-pad,
+**Estado: funcional y rediseñada.** Cliente ADB propio, mando completo (D-pad,
 multimedia, navegación, volumen y encendido), pantalla de Apps con detección
-dinámica, búsqueda por texto con historial, motor de escenas con editor visual, y
-los extras de sistema: widget, tiles de ajustes rápidos, mando en la barra de
-notificaciones, mando web para las visitas y firma para sideload.
+dinámica y favoritos, búsqueda por texto con historial, motor de escenas con editor
+visual, y los extras de sistema: widget, tiles de ajustes rápidos, mando en la barra
+de notificaciones, mando web para las visitas y compilación automática del APK.
+
+---
+
+## Diseño
+
+**Ember**: una brasa. La app se usa en el salón a oscuras, así que el tema por defecto
+es casi negro con un único acento cálido, y ese acento se usa como **luz, no como
+pintura**: al pulsar una tecla no se rellena de naranja, se enciende un anillo de luz
+en su borde (un arco en el aro de la cruceta, una raya bajo el icono en la barra de
+volumen) que se apaga despacio al soltar. La brasa junto al nombre, arriba a la
+izquierda, es el indicador de conexión, y respira mientras espera a la TV.
+
+- **Dos temas de verdad**: oscuro (por defecto), claro y «como el sistema», en
+  Ajustes → Apariencia. El claro no es blanco sino papel, y lleva el acento más
+  profundo para que se lea como texto; los contrastes están calculados, no
+  estimados (ver `ui/theme/Color.kt`).
+- **Tipografía**: Barlow para títulos y etiquetas, empaquetada en el APK (SIL Open
+  Font License, en `docs/OFL-Barlow.txt`); la del sistema para leer.
+- **Ajustes en una hoja inferior** con secciones: conexión, apariencia, otros mandos y
+  clave. Guardar la esconde con su animación antes de conectar.
+- **Movimiento con sentido**: cambio de pestaña con fundido y desplazamiento corto,
+  avisos que crecen y encogen en vez de empujar el mando, fichas que se recolocan al
+  fijarlas. Todo con lo que trae Compose: sin librerías nuevas.
+- El widget y la notificación siguen el tema del móvil (claro u oscuro); el icono y el
+  mando web comparten la misma paleta.
 
 ---
 
@@ -82,12 +108,13 @@ no existe, el `assembleRelease` sale sin firmar y tendrás que firmarlo a mano c
 ## Primer uso
 
 1. Prepara la TV y anota su IP → **[docs/EMPAREJAMIENTO.md](docs/EMPAREJAMIENTO.md)**
-2. Abre la app, toca el engranaje, escribe la IP y el puerto 5555.
+2. Abre la app y toca el engranaje: sube una hoja de ajustes. Escribe la IP y el
+   puerto 5555.
 3. Toca «Guardar y conectar».
 4. **Mira la televisión**: sale un diálogo de «¿Permitir depuración USB?» con una
    huella. Compárala con la que muestra la app en Ajustes, marca «Permitir siempre» y
    acepta.
-5. El indicador de arriba a la izquierda se pone verde.
+5. La brasa junto al nombre, arriba a la izquierda, se pone verde.
 6. La pestaña **Apps** se rellena sola al conectar. Toque = abrir, pulsación larga =
    forzar el cierre. La app que esté en pantalla aparece resaltada en naranja.
 7. En **Buscar** eliges dónde escribir y usas el teclado del móvil: la app manda
@@ -163,7 +190,8 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── AdbStream.kt        Un stream lógico (un "shell:...")
 │   └── AdbException.kt     Errores con pista accionable para la UI
 ├── data/
-│   ├── SettingsRepository.kt   DataStore: IP, puerto, modelo
+│   ├── SettingsRepository.kt   DataStore: IP, puerto, modelo, tema, favoritos
+│   ├── ThemeMode.kt            Oscuro, claro o como el sistema
 │   └── AdbKeyProvider.kt       AndroidKeyStore con respaldo en DataStore
 ├── domain/
 │   ├── TvCommand.kt        Catálogo completo de la sección 5
@@ -173,13 +201,13 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── ConnectionState.kt
 │   └── TvController.kt     Sesión viva, reconexión, serialización de comandos
 ├── ui/
-│   ├── theme/              Paleta oscura propia, no Material 3 por defecto
-│   ├── components/         D-pad, botones grandes, hápticos, fichas de app
+│   ├── theme/              Paleta Ember en dos temas, Barlow, escalas de espacio y radio
+│   ├── components/         D-pad, teclas, luz de pulsación (PressLight), hápticos, fichas
 │   ├── remote/             RemoteScreen: mando completo
 │   ├── apps/               AppsScreen: rejilla con detección dinámica
 │   ├── search/             SearchScreen: teclado remoto con historial
 │   ├── scenes/             ScenesScreen + SceneEditor: secuencias con retardos
-│   ├── MandoApp.kt         Cáscara: cabecera, avisos, pestañas y ajustes
+│   ├── MandoApp.kt         Cáscara: cabecera, avisos, pestañas y hoja de ajustes
 │   └── MandoViewModel.kt   Estado de las cuatro pantallas
 ├── system/
 │   ├── TvCommandReceiver.kt    Punto único de entrada de widget, tiles y notificación
@@ -189,7 +217,7 @@ app/src/main/java/com/gabriel/tvmando/
 │   ├── GuestRemoteServer.kt    Mando web para las visitas, sin dependencias
 │   └── GuestRemoteService.kt   Lo mantiene escuchando con la pantalla apagada
 ├── AppContainer.kt         Inyección de dependencias a mano
-└── MainActivity.kt
+└── MainActivity.kt         Arranque: lee el tema guardado antes de pintar nada
 ```
 
 El paquete `adb/` no importa nada de Android **a propósito**: así se puede probar en
@@ -203,7 +231,8 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 
 ## Qué está verificado y qué no
 
-**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 55 tests):
+**Verificado ejecutando los tests** (`./gradlew :app:testDebugUnitTest`, 72 tests,
+que GitHub Actions ejecuta en cada cambio antes de compilar el APK):
 
 - Handshake completo contra un `FakeAdbd` que habla el protocolo real y comprueba de
   forma independiente lo que enviamos.
@@ -231,18 +260,18 @@ las fases 3 y 4 se construyen encima sin tocar las capas de abajo.
 - Los identificadores de `QuickCommand`, fijados en un test porque viajan dentro de
   PendingIntents que el sistema guarda entre versiones de la app: si uno cambia de
   nombre, los widgets ya colocados dejan de funcionar en silencio.
+- Que el modo de tema guardado se lee tal cual y que un valor desconocido cae en
+  oscuro en vez de tirar la app al arrancar.
 
 **No verificado, pendiente de tu móvil y tu televisor:**
 
-- La compilación del APK. El entorno donde se escribió esto no tenía SDK de Android
-  ni acceso a `dl.google.com`, así que las capas que dependen de Android (Compose,
-  DataStore, AndroidKeyStore) están escritas pero no compiladas. Si algo se queja al
-  primer `./gradlew assembleDebug`, será ahí.
 - El comportamiento real de la Xiaomi TV S: que exponga el 5555 clásico, que acepte
   la clave y que responda a los keyevents. Es la fase 1 de la especificación y
   conviene hacerla a mano antes que nada (comandos en el documento de emparejamiento).
-- El feedback háptico y el tacto de los botones, que es lo que hay que ajustar
-  teniéndolo en la mano.
+- El feedback háptico, el tacto de los botones y la luz de pulsación, que es lo que
+  hay que ajustar teniéndolo en la mano.
+- El tema claro a la luz del día: los contrastes están calculados, pero el papel y el
+  naranja profundo hay que verlos en la pantalla.
 
 ---
 
@@ -265,7 +294,6 @@ sin apartar la vista. La detección se usa para informar, no para mover cosas.
 ## Lo que falta
 
 - Probarlo todo en un televisor de verdad (fase 1 de la especificación).
-- Compilar: nada de esto se ha compilado nunca, ver más arriba.
 
 Limitaciones conocidas de la sección 11 que siguen en pie: solo red local;
 `KEYCODE_POWER` es un toggle y no hay forma fiable de saber si la TV está encendida;

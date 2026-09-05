@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Tema oscuro del movil: la paleta de siempre. -->
+    <color name="widget_ink">#F00A0B0D</color>
+    <color name="widget_ink_high">#FF1A1D26</color>
+    <color name="widget_hairline">#FF272B36</color>
+    <color name="widget_chalk">#FFF2F3F5</color>
+    <color name="widget_ember">#FFFF5A1F</color>
+    <color name="widget_ember_sunk">#FF2E1409</color>
+</resources>
