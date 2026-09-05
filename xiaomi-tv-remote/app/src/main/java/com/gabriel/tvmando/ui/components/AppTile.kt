@@ -52,7 +52,6 @@ import androidx.core.graphics.drawable.toBitmap
 import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.ui.theme.Chalk
-import com.gabriel.tvmando.ui.theme.Ink
 import com.gabriel.tvmando.ui.theme.ChalkMuted
 import com.gabriel.tvmando.ui.theme.Ember
 import com.gabriel.tvmando.ui.theme.Hairline
@@ -162,7 +161,9 @@ fun AppTile(
                     .align(Alignment.TopEnd)
                     .offset(x = (-4).dp, y = 4.dp)
                     .clip(CircleShape)
-                    .background(Ink.copy(alpha = 0.55f))
+                    // Velo fijo y no del tema: va sobre el color de marca de la app,
+                    // que es el mismo en claro y en oscuro.
+                    .background(Color(0x8C08090C))
                     .clickable(onClick = onToggleFavorite)
                     // El relleno lleva la zona tactil a los 48 dp sin agrandar el
                     // icono: esta encima de la ficha y un toque desviado abriria la

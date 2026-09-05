@@ -22,6 +22,8 @@ data class TvSettings(
     val lastKnownModel: String? = null,
     /** Mando siempre visible en la barra de notificaciones. */
     val persistentRemote: Boolean = false,
+    /** Oscuro, claro o el que tenga el movil. */
+    val theme: ThemeMode = ThemeMode.DARK,
 ) {
     val isConfigured: Boolean get() = host.isNotBlank()
     val endpoint: String get() = "$host:$port"
@@ -48,6 +50,7 @@ class SettingsRepository(private val context: Context) {
             port = prefs[KEY_PORT] ?: TvSettings.DEFAULT_PORT,
             lastKnownModel = prefs[KEY_MODEL],
             persistentRemote = prefs[KEY_PERSISTENT_REMOTE] ?: false,
+            theme = ThemeMode.from(prefs[KEY_THEME]),
         )
     }
 
@@ -68,6 +71,10 @@ class SettingsRepository(private val context: Context) {
 
     suspend fun setPersistentRemote(enabled: Boolean) {
         context.dataStore.edit { prefs -> prefs[KEY_PERSISTENT_REMOTE] = enabled }
+    }
+
+    suspend fun setThemeMode(mode: ThemeMode) {
+        context.dataStore.edit { prefs -> prefs[KEY_THEME] = mode.name }
     }
 
     // --- escenas -----------------------------------------------------------
@@ -197,6 +204,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_PORT = intPreferencesKey("tv_port")
         val KEY_MODEL = stringPreferencesKey("tv_model")
         val KEY_PERSISTENT_REMOTE = booleanPreferencesKey("persistent_remote")
+        val KEY_THEME = stringPreferencesKey("theme_mode")
         val KEY_ADB_PRIVATE = stringPreferencesKey("adb_private_key")
         val KEY_ADB_PUBLIC = stringPreferencesKey("adb_public_key")
     }

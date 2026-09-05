@@ -13,10 +13,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
@@ -49,6 +51,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -57,6 +60,7 @@ import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.gabriel.tvmando.data.ThemeMode
 import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.ui.apps.AppsScreen
 import com.gabriel.tvmando.ui.components.GhostButton
@@ -76,10 +80,15 @@ import com.gabriel.tvmando.ui.theme.Chalk
 import com.gabriel.tvmando.ui.theme.ChalkFaint
 import com.gabriel.tvmando.ui.theme.ChalkMuted
 import com.gabriel.tvmando.ui.theme.Ember
+import com.gabriel.tvmando.ui.theme.EmberInk
+import com.gabriel.tvmando.ui.theme.EmberSunk
 import com.gabriel.tvmando.ui.theme.Hairline
 import com.gabriel.tvmando.ui.theme.Ink
+import com.gabriel.tvmando.ui.theme.InkHigh
 import com.gabriel.tvmando.ui.theme.InkRaised
+import com.gabriel.tvmando.ui.theme.Radius
 import com.gabriel.tvmando.ui.theme.Signal
+import com.gabriel.tvmando.ui.theme.Space
 import com.gabriel.tvmando.ui.theme.Waiting
 
 /**
@@ -282,6 +291,8 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
             host = state.settings.host,
             port = state.settings.port.toString(),
             fingerprint = state.keyFingerprint,
+            themeMode = state.settings.theme,
+            onThemeModeChange = { mode -> viewModel.setThemeMode(mode) },
             persistentRemote = state.settings.persistentRemote,
             guestState = guestState,
             onGuestRemoteChange = { enabled ->
@@ -462,6 +473,8 @@ private fun EndpointDialog(
     host: String,
     port: String,
     fingerprint: String,
+    themeMode: ThemeMode,
+    onThemeModeChange: (ThemeMode) -> Unit,
     persistentRemote: Boolean,
     onPersistentRemoteChange: (Boolean) -> Unit,
     guestState: GuestRemoteState,
@@ -478,7 +491,7 @@ private fun EndpointDialog(
         onDismissRequest = onDismiss,
         containerColor = InkRaised,
         title = {
-            Text("Conexion con la TV", style = MaterialTheme.typography.titleLarge, color = Chalk)
+            Text("Ajustes", style = MaterialTheme.typography.titleLarge, color = Chalk)
         },
         text = {
             Column(
@@ -501,6 +514,13 @@ private fun EndpointDialog(
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth(),
                 )
+                Box(
+                    Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(Hairline),
+                )
+                ThemeModeRow(selected = themeMode, onSelect = onThemeModeChange)
                 Box(
                     Modifier
                         .fillMaxWidth()
@@ -631,6 +651,7 @@ private fun EndpointDialog(
 
 private data class Status(val color: Color, val label: String)
 
+@Composable
 private fun ConnectionState.asStatus(configured: Boolean): Status = when (this) {
     is ConnectionState.Connected -> Status(Signal, "Conectada")
     ConnectionState.Connecting -> Status(Waiting, "Conectando")
@@ -653,13 +674,17 @@ private data class Banner(
 private fun MandoUiState.banner(): Banner? {
     val current = connection
     val configured = settings.isConfigured
-    return remember(current, configured) {
+    // Los colores del tema se leen aqui, en la composicion: el bloque de remember
+    // no lo es y no puede pedirlos.
+    val alert = Alert
+    val waiting = Waiting
+    return remember(current, configured, alert, waiting) {
         when {
             !configured -> Banner(
                 title = "Falta la IP de la TV",
                 body = "En la TV: Ajustes / Red e Internet / mira la IP. Activa antes la " +
                     "depuracion por red en Opciones de desarrollador.",
-                accent = Alert,
+                accent = alert,
                 offersSettings = true,
             )
 
@@ -667,16 +692,65 @@ private fun MandoUiState.banner(): Banner? {
                 title = "Mira la television",
                 body = "Acepta el aviso Permitir depuracion USB y marca la casilla de " +
                     "permitir siempre desde este dispositivo.",
-                accent = Waiting,
+                accent = waiting,
             )
 
             current is ConnectionState.Failed -> Banner(
                 title = current.message,
                 body = current.hint.orEmpty(),
-                accent = Alert,
+                accent = alert,
             )
 
             else -> null
         }
+    }
+}
+
+/**
+ * Tres opciones a la vista en vez de un desplegable: son pocas y asi se ve de un
+ * vistazo cual esta puesta. El cambio se aplica al momento, sin "guardar".
+ */
+@Composable
+private fun ThemeModeRow(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
+    Text(
+        text = "Apariencia",
+        style = MaterialTheme.typography.labelMedium,
+        color = ChalkMuted,
+    )
+    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+        ThemeChip("Oscuro", selected == ThemeMode.DARK, Modifier.weight(1f)) {
+            onSelect(ThemeMode.DARK)
+        }
+        ThemeChip("Claro", selected == ThemeMode.LIGHT, Modifier.weight(1f)) {
+            onSelect(ThemeMode.LIGHT)
+        }
+        ThemeChip("Sistema", selected == ThemeMode.SYSTEM, Modifier.weight(1f)) {
+            onSelect(ThemeMode.SYSTEM)
+        }
+    }
+}
+
+@Composable
+private fun ThemeChip(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val shape = RoundedCornerShape(Radius.chip)
+    Box(
+        modifier = modifier
+            .heightIn(min = 48.dp)
+            .clip(shape)
+            .background(if (selected) EmberSunk else InkHigh)
+            .border(1.dp, if (selected) Ember else Hairline, shape)
+            .selectable(selected = selected, role = Role.RadioButton, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = if (selected) EmberInk else Chalk,
+        )
     }
 }

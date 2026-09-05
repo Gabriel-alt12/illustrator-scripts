@@ -7,6 +7,7 @@ import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.gabriel.tvmando.AppContainer
 import com.gabriel.tvmando.data.SettingsRepository
+import com.gabriel.tvmando.data.ThemeMode
 import com.gabriel.tvmando.data.TvSettings
 import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.ConnectionState
@@ -458,6 +459,10 @@ class MandoViewModel(
      */
     fun setPersistentRemote(enabled: Boolean) {
         viewModelScope.launch { settings.setPersistentRemote(enabled) }
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        viewModelScope.launch { settings.setThemeMode(mode) }
     }
 
     /** Genera una clave nueva: la TV volvera a pedir autorizacion. */
