@@ -49,15 +49,19 @@ instala encima de la anterior sin perder la IP, los favoritos ni las escenas. Ni
 ni Android Studio, ni copiar carpetas.
 
 La primera vez, Android pedirá permiso para instalar apps de ese navegador, y habrá
-que **desinstalar la copia que compilaste a mano**: está firmada con otra clave y el
-sistema no deja actualizar entre firmas distintas. Se pierde la IP guardada una sola
-vez.
+que **desinstalar la copia anterior** si estaba firmada con otra clave (la que
+compilaste a mano, o una de antes de que el flujo guardara su clave): el sistema no
+deja actualizar entre firmas distintas. Se pierde la IP guardada esa vez.
 
-### Firma estable (recomendado, se hace una vez)
+Sin secretos configurados, el flujo firma con la clave de depuración de Gradle y la
+guarda en la caché de Actions, así que es la misma en cada compilación y las
+versiones se instalan una encima de otra. La caché caduca si pasa una semana sin
+compilar nada: la siguiente firma sería nueva y habría que desinstalar una vez.
 
-Sin esto el APK sale sin firma de release y cada compilación cuenta como una app
-distinta, así que habría que desinstalar en *cada* actualización. Para evitarlo, crea
-el almacén y guarda cuatro secretos en el repositorio:
+### Firma propia (opcional)
+
+Para una firma que no dependa de una caché, crea el almacén y guarda cuatro secretos
+en el repositorio:
 
 ```bash
 keytool -genkey -v -keystore mando-tv.jks -keyalg RSA -keysize 2048 \

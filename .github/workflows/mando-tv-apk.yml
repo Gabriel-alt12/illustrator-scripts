@@ -5,7 +5,7 @@
 #
 # Ademas aqui si hay SDK de Android y acceso a la red, asi que esto es tambien el
 # unico sitio donde los tests se ejecutan de verdad en cada cambio.
-name: Mando TV (APK)
+name: Ember (APK)
 
 on:
   push:
@@ -41,7 +41,18 @@ jobs:
 
       # Sin firma estable, cada APK cuenta como una app distinta y Android obliga a
       # desinstalar la anterior (y con ella la IP guardada, los favoritos y las
-      # escenas). Con los secretos puestos, cada version se instala encima de la otra.
+      # escenas). Sin secretos se firma con la clave de depuracion que genera Gradle;
+      # guardarla en la cache de Actions hace que sea la misma en cada build y cada
+      # version se instala encima de la anterior. Si la cache caduca (una semana sin
+      # compilar), la firma cambia una vez y esa vez toca desinstalar.
+      - name: Clave de depuracion estable
+        if: env.KEYSTORE_BASE64 == ''
+        uses: actions/cache@v4
+        with:
+          path: ~/.android/debug.keystore
+          key: debug-keystore-v1
+
+      # Con los secretos puestos, la firma es propia y no depende de ninguna cache.
       - name: Preparar la firma
         if: env.KEYSTORE_BASE64 != ''
         run: |
@@ -74,7 +85,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release view mando-tv >/dev/null 2>&1 || gh release create mando-tv \
-            --title "Mando TV — ultima version" \
+            --title "Ember — ultima version" \
+            --notes "APK recien compilado. Descarga mando-tv.apk desde el movil e instalalo encima del anterior."
+          gh release edit mando-tv \
+            --title "Ember — ultima version" \
             --notes "APK recien compilado. Descarga mando-tv.apk desde el movil e instalalo encima del anterior."
           cp "$APK" mando-tv.apk
           gh release upload mando-tv mando-tv.apk --clobber
