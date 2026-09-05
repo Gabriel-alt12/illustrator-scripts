@@ -27,6 +27,8 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,17 +41,22 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SettingsRemote
 import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.BottomSheetDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -99,6 +106,7 @@ import com.gabriel.tvmando.ui.theme.Radius
 import com.gabriel.tvmando.ui.theme.Signal
 import com.gabriel.tvmando.ui.theme.Space
 import com.gabriel.tvmando.ui.theme.Waiting
+import kotlinx.coroutines.launch
 
 /**
  * Cascara de la app: cabecera con el estado de conexion, contenido de la pantalla
@@ -333,7 +341,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     }
 
     if (showSettings) {
-        EndpointDialog(
+        SettingsSheet(
             host = state.settings.host,
             port = state.settings.port.toString(),
             fingerprint = state.keyFingerprint,
@@ -509,14 +517,23 @@ private fun Notice(
         if (onAction != null) {
             Spacer(Modifier.height(4.dp))
             TextButton(onClick = onAction, contentPadding = PaddingValues(0.dp)) {
-                Text("Configurar la IP", style = MaterialTheme.typography.labelLarge, color = Ember)
+                Text("Configurar la IP", style = MaterialTheme.typography.labelLarge, color = EmberInk)
             }
         }
     }
 }
 
+/**
+ * Ajustes en una hoja que sube desde abajo, donde esta el pulgar, en vez de un
+ * dialogo en medio de la pantalla. Se cierra deslizando o tocando fuera, y guardar o
+ * reemparejar la esconden con su animacion antes de actuar.
+ *
+ * Secciones, de mas a menos frecuente: la conexion (lo que se toca al estrenar la
+ * app o cambiar de red), la apariencia, los dos mandos auxiliares y la clave.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun EndpointDialog(
+private fun SettingsSheet(
     host: String,
     port: String,
     fingerprint: String,
@@ -533,167 +550,175 @@ private fun EndpointDialog(
     var hostField by rememberSaveable(host) { mutableStateOf(host) }
     var portField by rememberSaveable(port) { mutableStateOf(port) }
     val clipboard = LocalClipboardManager.current
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val scope = rememberCoroutineScope()
 
-    AlertDialog(
+    // Esconder la hoja con su animacion y, al terminar, hacer lo que se pidio. Si se
+    // actuara al momento, quien la muestra la quitaria de golpe a medio bajar.
+    fun hideThen(action: () -> Unit) {
+        scope.launch { sheetState.hide() }.invokeOnCompletion { action() }
+    }
+
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = Radius.tile, topEnd = Radius.tile),
         containerColor = InkRaised,
-        title = {
+        contentColor = Chalk,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Hairline) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Space.xl)
+                .padding(bottom = Space.xxl)
+                .imePadding(),
+            verticalArrangement = Arrangement.spacedBy(Space.md),
+        ) {
             Text("Ajustes", style = MaterialTheme.typography.titleLarge, color = Chalk)
-        },
-        text = {
-            Column(
-                modifier = Modifier.imePadding(),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
+
+            SectionTitle("Conexion con la TV")
+            OutlinedTextField(
+                value = hostField,
+                onValueChange = { hostField = it },
+                label = { Text("IP de la TV") },
+                placeholder = { Text("192.168.1.42") },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth(),
+            )
+            OutlinedTextField(
+                value = portField,
+                onValueChange = { value -> portField = value.filter { it.isDigit() } },
+                label = { Text("Puerto") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
             ) {
-                OutlinedTextField(
-                    value = hostField,
-                    onValueChange = { hostField = it },
-                    label = { Text("IP de la TV") },
-                    placeholder = { Text("192.168.1.42") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                OutlinedTextField(
-                    value = portField,
-                    onValueChange = { value -> portField = value.filter { it.isDigit() } },
-                    label = { Text("Puerto") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Hairline),
-                )
-                ThemeModeRow(selected = themeMode, onSelect = onThemeModeChange)
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Hairline),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Mando en la barra de notificaciones",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Chalk,
-                        )
-                        Text(
-                            text = "Encendido, volumen y silencio sin abrir la app.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ChalkFaint,
-                        )
-                    }
-                    Switch(
-                        checked = persistentRemote,
-                        onCheckedChange = onPersistentRemoteChange,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Ember,
-                            checkedTrackColor = InkRaised,
-                            checkedBorderColor = Ember,
-                        ),
-                    )
+                TextButton(onClick = { hideThen { onSave(hostField, portField) } }) {
+                    Text("Guardar y conectar", style = MaterialTheme.typography.labelLarge, color = EmberInk)
                 }
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Hairline),
-                )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            text = "Mando para invitados",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Chalk,
-                        )
-                        Text(
-                            text = "Una direccion para quien este de visita: controla la TV " +
-                                "desde su navegador, sin instalar nada.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ChalkFaint,
-                        )
-                    }
-                    Switch(
-                        checked = guestState is GuestRemoteState.Running,
-                        onCheckedChange = onGuestRemoteChange,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = Ember,
-                            checkedTrackColor = InkRaised,
-                            checkedBorderColor = Ember,
-                        ),
-                    )
-                }
-                when (guestState) {
-                    is GuestRemoteState.Running -> {
-                        val url = guestState.url
-                        Text(
-                            text = url,
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = Ember,
-                        )
-                        Text(
-                            text = "Solo funciona en la WiFi de casa y mientras la app siga " +
-                                "abierta. Al apagarlo, la direccion deja de valer.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = ChalkFaint,
-                        )
-                        TextButton(
-                            onClick = { clipboard.setText(AnnotatedString(url)) },
-                            contentPadding = PaddingValues(0.dp),
-                        ) {
-                            Text("Copiar enlace", color = Ember)
-                        }
-                    }
+            }
 
-                    is GuestRemoteState.Failed -> Text(
-                        text = guestState.message,
+            SectionTitle("Apariencia")
+            ThemeModeRow(selected = themeMode, onSelect = onThemeModeChange)
+
+            SectionTitle("Otros mandos")
+            SettingSwitch(
+                title = "Mando en la barra de notificaciones",
+                body = "Encendido, volumen y silencio sin abrir la app.",
+                checked = persistentRemote,
+                onCheckedChange = onPersistentRemoteChange,
+            )
+            SettingSwitch(
+                title = "Mando para invitados",
+                body = "Una direccion para quien este de visita: controla la TV desde su " +
+                    "navegador, sin instalar nada.",
+                checked = guestState is GuestRemoteState.Running,
+                onCheckedChange = onGuestRemoteChange,
+            )
+            when (guestState) {
+                is GuestRemoteState.Running -> {
+                    val url = guestState.url
+                    Text(
+                        text = url,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = EmberInk,
+                    )
+                    Text(
+                        text = "Solo funciona en la WiFi de casa y mientras la app siga " +
+                            "abierta. Al apagarlo, la direccion deja de valer.",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = Alert,
+                        color = ChalkFaint,
                     )
+                    TextButton(
+                        onClick = { clipboard.setText(AnnotatedString(url)) },
+                        contentPadding = PaddingValues(0.dp),
+                    ) {
+                        Text("Copiar enlace", style = MaterialTheme.typography.labelLarge, color = EmberInk)
+                    }
+                }
 
-                    GuestRemoteState.Stopped -> Unit
-                }
-                Box(
-                    Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Hairline),
-                )
-                Text(
-                    text = "Huella de la clave de esta app",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = ChalkMuted,
-                )
-                Text(
-                    text = fingerprint.ifBlank { "generando..." },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Chalk,
-                )
-                Text(
-                    text = "Debe coincidir con la que muestra la TV al pedirte permiso.",
+                is GuestRemoteState.Failed -> Text(
+                    text = guestState.message,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = ChalkFaint,
+                    color = Alert,
                 )
-                TextButton(onClick = onRepair) {
-                    Text("Generar clave nueva y reemparejar", color = Ember)
-                }
+
+                GuestRemoteState.Stopped -> Unit
             }
-        },
-        confirmButton = {
-            TextButton(onClick = { onSave(hostField, portField) }) {
-                Text("Guardar y conectar", color = Ember)
+
+            SectionTitle("Clave de esta app")
+            Text(
+                text = fingerprint.ifBlank { "generando..." },
+                style = MaterialTheme.typography.labelSmall,
+                color = Chalk,
+            )
+            Text(
+                text = "Debe coincidir con la que muestra la TV al pedirte permiso.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ChalkFaint,
+            )
+            TextButton(
+                onClick = { hideThen(onRepair) },
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text("Generar clave nueva y reemparejar", style = MaterialTheme.typography.labelLarge, color = EmberInk)
             }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("Cancelar", color = ChalkMuted)
-            }
-        },
-    )
+        }
+    }
+}
+
+/** Cabecera de seccion de la hoja de ajustes: un filete y el titulo en pequeno. */
+@Composable
+private fun SectionTitle(text: String) {
+    Column {
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(Hairline),
+        )
+        Spacer(Modifier.height(Space.md))
+        Text(
+            text = text.uppercase(),
+            style = MaterialTheme.typography.labelMedium,
+            color = ChalkMuted,
+        )
+    }
+}
+
+/** Fila de ajuste con interruptor: titulo, explicacion corta y el Switch a la derecha. */
+@Composable
+private fun SettingSwitch(
+    title: String,
+    body: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.bodyLarge, color = Chalk)
+            Text(text = body, style = MaterialTheme.typography.bodyMedium, color = ChalkFaint)
+        }
+        Spacer(Modifier.width(Space.md))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Ember,
+                checkedTrackColor = EmberSunk,
+                checkedBorderColor = Ember,
+                uncheckedThumbColor = ChalkMuted,
+                uncheckedTrackColor = InkHigh,
+                uncheckedBorderColor = Hairline,
+            ),
+        )
+    }
 }
 
 private data class Status(val color: Color, val label: String, val pulse: Boolean = false)
@@ -759,11 +784,6 @@ private fun MandoUiState.banner(): Banner? {
  */
 @Composable
 private fun ThemeModeRow(selected: ThemeMode, onSelect: (ThemeMode) -> Unit) {
-    Text(
-        text = "Apariencia",
-        style = MaterialTheme.typography.labelMedium,
-        color = ChalkMuted,
-    )
     Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
         ThemeChip("Oscuro", selected == ThemeMode.DARK, Modifier.weight(1f)) {
             onSelect(ThemeMode.DARK)
