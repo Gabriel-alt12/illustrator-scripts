@@ -12,7 +12,41 @@ notificaciones, mando web para las visitas y firma para sideload.
 
 ---
 
-## Compilar e instalar
+## Actualizar sin compilar
+
+Cada cambio se compila solo en GitHub Actions y deja el APK en un enlace fijo:
+
+**https://github.com/Gabriel-alt12/illustrator-scripts/releases/download/mando-tv/mando-tv.apk**
+
+Guárdalo en marcadores del móvil: abrirlo descarga siempre la última versión, y se
+instala encima de la anterior sin perder la IP, los favoritos ni las escenas. Ni PC,
+ni Android Studio, ni copiar carpetas.
+
+La primera vez, Android pedirá permiso para instalar apps de ese navegador, y habrá
+que **desinstalar la copia que compilaste a mano**: está firmada con otra clave y el
+sistema no deja actualizar entre firmas distintas. Se pierde la IP guardada una sola
+vez.
+
+### Firma estable (recomendado, se hace una vez)
+
+Sin esto el APK sale sin firma de release y cada compilación cuenta como una app
+distinta, así que habría que desinstalar en *cada* actualización. Para evitarlo, crea
+el almacén y guarda cuatro secretos en el repositorio:
+
+```bash
+keytool -genkey -v -keystore mando-tv.jks -keyalg RSA -keysize 2048 \
+        -validity 10000 -alias mando
+base64 -w 0 mando-tv.jks    # esto es lo que se pega en KEYSTORE_BASE64
+```
+
+En **Settings → Secrets and variables → Actions** del repositorio, añade
+`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS` y `KEY_PASSWORD`. El flujo los
+detecta solo: si están, firma; si no, compila sin firmar.
+
+Guarda el `.jks` fuera del repositorio y no lo pierdas: sin él no se pueden firmar
+versiones nuevas que actualicen a las ya instaladas.
+
+## Compilar e instalar a mano
 
 Requiere JDK 17 y el SDK de Android 35.
 
