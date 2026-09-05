@@ -63,10 +63,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gabriel.tvmando.data.ThemeMode
 import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.ui.apps.AppsScreen
+import com.gabriel.tvmando.ui.components.BrandStatus
 import com.gabriel.tvmando.ui.components.GhostButton
 import com.gabriel.tvmando.ui.components.NavBar
 import com.gabriel.tvmando.ui.components.NavBarItem
-import com.gabriel.tvmando.ui.components.StatusBadge
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.rememberHaptics
 import com.gabriel.tvmando.ui.remote.RemoteScreen
@@ -338,17 +338,17 @@ private fun Header(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        StatusBadge(
+        BrandStatus(
             color = status.color,
             label = status.label,
             detail = if (state.settings.isConfigured) state.settings.endpoint else "sin IP",
             modifier = Modifier.weight(1f),
         )
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.md))
         GhostButton(onClick = onReconnect, icon = Icons.Rounded.Refresh, description = "Reconectar")
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.sm))
         GhostButton(onClick = onSeeScreen, icon = Icons.Rounded.Tv, description = "Ver la pantalla de la TV")
-        Spacer(Modifier.width(10.dp))
+        Spacer(Modifier.width(Space.sm))
         GhostButton(onClick = onSettings, icon = Icons.Rounded.Settings, description = "Ajustes")
     }
 

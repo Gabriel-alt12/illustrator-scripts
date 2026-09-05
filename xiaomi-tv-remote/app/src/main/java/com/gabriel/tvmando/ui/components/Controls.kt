@@ -1,13 +1,9 @@
 package com.gabriel.tvmando.ui.components
 
 import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,7 +12,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -26,77 +21,100 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.gabriel.tvmando.ui.theme.Chalk
 import com.gabriel.tvmando.ui.theme.ChalkFaint
 import com.gabriel.tvmando.ui.theme.ChalkMuted
 import com.gabriel.tvmando.ui.theme.Ember
+import com.gabriel.tvmando.ui.theme.EmberGlow
 import com.gabriel.tvmando.ui.theme.EmberSunk
 import com.gabriel.tvmando.ui.theme.Hairline
 import com.gabriel.tvmando.ui.theme.InkHigh
 import com.gabriel.tvmando.ui.theme.InkRaised
+import com.gabriel.tvmando.ui.theme.Radius
+import com.gabriel.tvmando.ui.theme.Space
 
 /**
  * Botones del mando.
  *
- * Todos comparten el mismo gesto: al pulsar encogen un poco y se encienden en color
- * acento. Es la unica animacion de la app y esta para confirmar la pulsacion, no
- * para decorar.
+ * Todos comparten el mismo gesto: al pulsar, la tecla encoge un poco y se enciende
+ * un anillo de luz en su borde; al soltar, la luz se apaga despacio. Luz, no pintura:
+ * el fondo de la tecla no cambia de color. Ver [PressLight.kt].
  */
 
-/** Punto de color con etiqueta: el indicador de conexion siempre visible. */
+/**
+ * Marca y estado en una sola pieza: el nombre de la app y, debajo, la luz de conexion
+ * con su etiqueta. Antes eran una pastilla aparte; asi la cabecera es mas baja y la
+ * marca queda donde se espera, arriba a la izquierda.
+ */
 @Composable
-fun StatusBadge(
+fun BrandStatus(
     color: Color,
     label: String,
     detail: String?,
     modifier: Modifier = Modifier,
 ) {
     val animated by animateColorAsState(color, label = "status-color")
-    Row(
-        modifier = modifier
-            .clip(RoundedCornerShape(999.dp))
-            .background(InkRaised)
-            .border(1.dp, Hairline, RoundedCornerShape(999.dp))
-            .padding(horizontal = 14.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .size(9.dp)
-                .clip(CircleShape)
-                .background(animated),
+    Column(modifier) {
+        Text(
+            text = "Ember",
+            style = MaterialTheme.typography.displaySmall.copy(
+                fontSize = 26.sp,
+                lineHeight = 28.sp,
+                letterSpacing = (-0.6).sp,
+            ),
+            color = Chalk,
         )
-        Spacer(Modifier.width(9.dp))
-        Column {
+        Spacer(Modifier.height(2.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            StatusDot(animated)
+            Spacer(Modifier.width(Space.sm))
             Text(
-                text = label.uppercase(),
+                text = if (detail.isNullOrBlank()) label.uppercase() else "${label.uppercase()}  \u00B7  $detail",
                 style = MaterialTheme.typography.labelMedium,
-                color = Chalk,
+                color = ChalkMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
-            if (!detail.isNullOrBlank()) {
-                Text(
-                    text = detail,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = ChalkMuted,
-                )
-            }
         }
     }
 }
 
+/** La brasa: un punto del color del estado con su halo. */
+@Composable
+private fun StatusDot(color: Color) {
+    Box(
+        Modifier
+            .size(8.dp)
+            .drawBehind {
+                val radius = size.minDimension / 2
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        colors = listOf(color.copy(alpha = 0.55f), color.copy(alpha = 0f)),
+                        center = center,
+                        radius = radius * 2.4f,
+                    ),
+                    radius = radius * 2.4f,
+                )
+                drawCircle(color, radius = radius)
+            },
+    )
+}
+
 /**
  * Boton de encendido: circulo grande, separado del resto para que no se pulse por
- * error. Es el unico control con relleno degradado en color acento.
+ * error. Es el unico control con relleno degradado en color acento, y su luz es la
+ * mas ancha.
  */
 @Composable
 fun PowerKey(
@@ -106,27 +124,20 @@ fun PowerKey(
     enabled: Boolean = true,
     size: Dp = 96.dp,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.92f else 1f,
-        animationSpec = spring(dampingRatio = 0.45f, stiffness = 900f),
-        label = "power-scale",
-    )
-    val ring by animateColorAsState(if (pressed) Ember else Hairline, label = "power-ring")
+    val press = rememberPress()
+    val ember = Ember
+    val glow = EmberGlow
 
     Box(
         modifier = modifier
             .size(size)
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .pressScale(press, pressedScale = 0.94f)
+            .emberRing({ press.light.value }, ember, glow, CircleShape, strokeWidth = 2.5.dp, glowWidth = 18.dp)
             .clip(CircleShape)
             .background(Brush.radialGradient(listOf(EmberSunk, InkHigh)))
-            .border(2.dp, ring, CircleShape)
+            .border(1.5.dp, Hairline, CircleShape)
             .clickable(
-                interactionSource = interaction,
+                interactionSource = press.interaction,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
@@ -136,7 +147,7 @@ fun PowerKey(
         Icon(
             imageVector = icon,
             contentDescription = "Encender o apagar la TV",
-            tint = if (enabled) Ember else ChalkFaint,
+            tint = if (enabled) ember else ChalkFaint,
             modifier = Modifier.size(size * 0.38f),
         )
     }
@@ -159,13 +170,14 @@ fun VolumeBar(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
+    val shape = RoundedCornerShape(Radius.bar)
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(84.dp)
-            .clip(RoundedCornerShape(28.dp))
+            .clip(shape)
             .background(InkRaised)
-            .border(1.dp, Hairline, RoundedCornerShape(28.dp)),
+            .border(1.dp, Hairline, shape),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         VolumeZone(onDown, iconDown, "Bajar volumen", enabled, Modifier.weight(1f), repeats = true)
@@ -186,6 +198,7 @@ private fun Divider() {
     )
 }
 
+/** Zona de la barra: sin silueta propia, la luz es una raya bajo el icono. */
 @Composable
 private fun VolumeZone(
     onClick: () -> Unit,
@@ -195,24 +208,21 @@ private fun VolumeZone(
     modifier: Modifier = Modifier,
     repeats: Boolean = false,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
+    val press = rememberPress()
+    val ember = Ember
+    val glow = EmberGlow
 
     // Subir y bajar se mantienen pulsados; silenciar no, que es un interruptor y
     // repetirlo lo unico que hace es dejarlo como estaba.
-    if (repeats) RepeatWhilePressed(pressed = pressed, enabled = enabled, onRepeat = onClick)
-    val tint by animateColorAsState(if (pressed) Ember else Chalk, label = "vol-tint")
-    val background by animateColorAsState(
-        if (pressed) EmberSunk else Color.Transparent,
-        label = "vol-bg",
-    )
+    if (repeats) RepeatWhilePressed(pressed = press.pressed, enabled = enabled, onRepeat = onClick)
+    val tint by animateColorAsState(if (press.pressed) ember else Chalk, label = "vol-tint")
 
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .background(background)
+            .emberUnderline({ press.light.value }, ember, glow)
             .clickable(
-                interactionSource = interaction,
+                interactionSource = press.interaction,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
@@ -239,25 +249,24 @@ fun RoundKey(
     size: Dp = 52.dp,
     emphasis: Boolean = false,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val ring by animateColorAsState(
-        if (pressed) Ember else if (emphasis) Hairline else Color.Transparent,
-        label = "round-ring",
-    )
+    val press = rememberPress()
+    val ember = Ember
+    val glow = EmberGlow
     val tint by animateColorAsState(
-        if (pressed) Ember else if (emphasis) Chalk else ChalkMuted,
+        if (press.pressed) ember else if (emphasis) Chalk else ChalkMuted,
         label = "round-tint",
     )
 
     Box(
         modifier = modifier
             .size(size)
+            .pressScale(press)
+            .emberRing({ press.light.value }, ember, glow, CircleShape)
             .clip(CircleShape)
             .background(if (emphasis) InkHigh else InkRaised)
-            .border(1.dp, ring, CircleShape)
+            .border(1.dp, if (emphasis) Hairline else Color.Transparent, CircleShape)
             .clickable(
-                interactionSource = interaction,
+                interactionSource = press.interaction,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
@@ -282,19 +291,22 @@ fun PillKey(
     modifier: Modifier = Modifier,
     enabled: Boolean = true,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val ring by animateColorAsState(if (pressed) Ember else Hairline, label = "pill-ring")
-    val tint by animateColorAsState(if (pressed) Ember else Chalk, label = "pill-tint")
+    val press = rememberPress()
+    val ember = Ember
+    val glow = EmberGlow
+    val tint by animateColorAsState(if (press.pressed) ember else Chalk, label = "pill-tint")
+    val shape = RoundedCornerShape(Radius.card)
 
     Column(
         modifier = modifier
             .height(60.dp)
-            .clip(RoundedCornerShape(20.dp))
+            .pressScale(press)
+            .emberRing({ press.light.value }, ember, glow, shape)
+            .clip(shape)
             .background(InkRaised)
-            .border(1.dp, ring, RoundedCornerShape(20.dp))
+            .border(1.dp, Hairline, shape)
             .clickable(
-                interactionSource = interaction,
+                interactionSource = press.interaction,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
@@ -308,7 +320,7 @@ fun PillKey(
             tint = if (enabled) tint else ChalkFaint,
             modifier = Modifier.size(22.dp),
         )
-        Spacer(Modifier.height(4.dp))
+        Spacer(Modifier.height(Space.xs))
         Text(
             text = label.uppercase(),
             style = MaterialTheme.typography.labelMedium,
@@ -317,7 +329,7 @@ fun PillKey(
     }
 }
 
-/** Boton secundario de la cabecera: discreto, sin relleno. */
+/** Boton secundario de la cabecera: discreto, sin relleno de acento. */
 @Composable
 fun GhostButton(
     onClick: () -> Unit,
@@ -325,18 +337,22 @@ fun GhostButton(
     description: String,
     modifier: Modifier = Modifier,
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val border by animateColorAsState(if (pressed) Ember else Hairline, label = "ghost-border")
+    val press = rememberPress()
+    val ember = Ember
+    val glow = EmberGlow
+    val tint by animateColorAsState(if (press.pressed) ember else ChalkMuted, label = "ghost-tint")
+    val shape = RoundedCornerShape(Radius.button)
 
     Box(
         modifier = modifier
             .size(46.dp)
-            .clip(RoundedCornerShape(14.dp))
+            .pressScale(press)
+            .emberRing({ press.light.value }, ember, glow, shape)
+            .clip(shape)
             .background(InkRaised)
-            .border(1.dp, border, RoundedCornerShape(14.dp))
+            .border(1.dp, Hairline, shape)
             .clickable(
-                interactionSource = interaction,
+                interactionSource = press.interaction,
                 indication = null,
                 onClick = onClick,
             ),
@@ -345,7 +361,7 @@ fun GhostButton(
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = ChalkMuted,
+            tint = tint,
             modifier = Modifier.size(20.dp),
         )
     }

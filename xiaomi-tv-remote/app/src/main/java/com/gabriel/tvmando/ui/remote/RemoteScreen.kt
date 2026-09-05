@@ -35,6 +35,7 @@ import com.gabriel.tvmando.ui.components.PowerKey
 import com.gabriel.tvmando.ui.components.RoundKey
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.VolumeBar
+import com.gabriel.tvmando.ui.theme.Space
 
 /**
  * Mando completo (fase 3).
@@ -65,7 +66,7 @@ fun RemoteScreen(
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            horizontalArrangement = Arrangement.spacedBy(Space.md),
         ) {
             PillKey(
                 onClick = { press(TvKey.BACK) },
@@ -97,7 +98,7 @@ fun RemoteScreen(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.lg))
 
         Dpad(
             onUp = { press(TvKey.DPAD_UP) },
@@ -108,7 +109,7 @@ fun RemoteScreen(
             enabled = enabled,
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.lg))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -149,7 +150,7 @@ fun RemoteScreen(
             )
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.lg))
 
         VolumeBar(
             onDown = { press(TvKey.VOLUME_DOWN) },
@@ -161,7 +162,7 @@ fun RemoteScreen(
             enabled = enabled,
         )
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(Modifier.height(Space.lg))
 
         PowerKey(
             onClick = { press(TvKey.POWER, Tap.Confirm) },

@@ -1,17 +1,12 @@
 package com.gabriel.tvmando.ui.components
 
 import android.content.Context
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -33,14 +28,12 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.Dispatchers
@@ -54,7 +47,9 @@ import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.ui.theme.Chalk
 import com.gabriel.tvmando.ui.theme.ChalkMuted
 import com.gabriel.tvmando.ui.theme.Ember
+import com.gabriel.tvmando.ui.theme.EmberGlow
 import com.gabriel.tvmando.ui.theme.Hairline
+import com.gabriel.tvmando.ui.theme.Radius
 
 /**
  * Ficha de una app instalada en la TV.
@@ -86,30 +81,19 @@ fun AppTile(
     val icon by produceState<ImageBitmap?>(null, app.packageName) {
         value = withContext(Dispatchers.IO) { phoneIcon(context, app.packageName) }
     }
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
-    val scale by animateFloatAsState(
-        targetValue = if (pressed) 0.94f else 1f,
-        animationSpec = spring(dampingRatio = 0.5f, stiffness = 900f),
-        label = "tile-scale",
-    )
-    val ring by animateColorAsState(
-        when {
-            pressed -> Ember
-            isForeground -> Ember
-            else -> Hairline
-        },
-        label = "tile-ring",
-    )
+    val press = rememberPress()
+    val ember = Ember
+    val glow = EmberGlow
+    // La app que esta en la TV lleva el borde encendido fijo; las demas, solo la luz
+    // de pulsacion, la misma que las teclas del mando.
+    val ring = if (isForeground) ember else Hairline
+    val shape = RoundedCornerShape(Radius.tile)
 
     Column(
         modifier = modifier
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-            }
+            .pressScale(press, pressedScale = 0.94f)
             .combinedClickable(
-                interactionSource = interaction,
+                interactionSource = press.interaction,
                 indication = null,
                 enabled = enabled,
                 onClick = onClick,
@@ -121,9 +105,10 @@ fun AppTile(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(1f)
-                .clip(RoundedCornerShape(24.dp))
+                .emberRing({ press.light.value }, ember, glow, shape)
+                .clip(shape)
                 .background(tileColor(app.packageName))
-                .border(if (isForeground) 2.dp else 1.dp, ring, RoundedCornerShape(24.dp)),
+                .border(if (isForeground) 2.dp else 1.dp, ring, shape),
             contentAlignment = Alignment.Center,
         ) {
             // A una propiedad delegada no se le hace smart cast: hay que sacar el
