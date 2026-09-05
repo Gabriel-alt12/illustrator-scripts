@@ -1,6 +1,6 @@
-# Mando TV — Xiaomi TV S Mini LED
+# Ember — mando para la Xiaomi TV S Mini LED
 
-App Android para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en red
+App Android (antes llamada «Mando TV») para controlar una Xiaomi TV S Mini LED 2025 (Google TV) por ADB en red
 local. Kotlin + Jetpack Compose, MVVM, DataStore. Sin backend, sin cuentas, sin
 internet: todo local.
 
@@ -100,7 +100,7 @@ no existe, el `assembleRelease` sale sin firmar y tendrás que firmarlo a mano c
 
 ### Fuera de la app
 
-- **Widget**: mantén pulsada la pantalla de inicio → Widgets → Mando TV. Cuatro
+- **Widget**: mantén pulsada la pantalla de inicio → Widgets → Ember. Cuatro
   botones: encendido, volumen −/+ y silencio.
 - **Tiles**: edita los ajustes rápidos y arrastra «Apagar TV» y «Silenciar TV».
 - **Notificación persistente**: actívala en Ajustes de la app. Cinco botones
