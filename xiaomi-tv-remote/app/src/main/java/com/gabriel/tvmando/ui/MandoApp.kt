@@ -1,5 +1,14 @@
 package com.gabriel.tvmando.ui
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -161,24 +170,54 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
             },
         )
 
-        state.banner()?.let { banner ->
-            Spacer(Modifier.height(16.dp))
-            Notice(
-                title = banner.title,
-                body = banner.body,
-                accent = banner.accent,
-                onAction = if (banner.offersSettings) {
-                    { showSettings = true }
-                } else {
-                    null
-                },
-            )
+        // El aviso entra y sale con un fundido y la altura animada, en vez de aparecer
+        // de golpe y empujar el mando hacia abajo. El ancho va fijo para que solo se
+        // anime la altura.
+        AnimatedContent(
+            targetState = state.banner(),
+            modifier = Modifier.fillMaxWidth(),
+            transitionSpec = {
+                (fadeIn(tween(220)) togetherWith fadeOut(tween(160)))
+                    .using(SizeTransform(clip = false))
+            },
+            contentKey = { it?.title },
+            label = "aviso",
+        ) { banner ->
+            if (banner != null) {
+                Column {
+                    Spacer(Modifier.height(Space.lg))
+                    Notice(
+                        title = banner.title,
+                        body = banner.body,
+                        accent = banner.accent,
+                        onAction = if (banner.offersSettings) {
+                            { showSettings = true }
+                        } else {
+                            null
+                        },
+                    )
+                }
+            }
         }
 
         Spacer(Modifier.height(20.dp))
 
-        Box(Modifier.weight(1f)) {
-            when (destination) {
+        // Cambio de pestana con fundido y un desplazamiento corto en el sentido del
+        // salto: se entiende hacia donde se ha ido sin que la pantalla "vuele".
+        AnimatedContent(
+            targetState = destination,
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            transitionSpec = {
+                val forward = targetState.ordinal > initialState.ordinal
+                val shift = { full: Int -> if (forward) full / 12 else -full / 12 }
+                (fadeIn(tween(220)) + slideInHorizontally(tween(220), shift)) togetherWith
+                    (fadeOut(tween(140)) + slideOutHorizontally(tween(140)) { -shift(it) })
+            },
+            label = "pantalla",
+        ) { screen ->
+            when (screen) {
                 Destination.REMOTE -> RemoteScreen(
                     enabled = state.controlsEnabled,
                     onCommand = viewModel::send,
@@ -224,14 +263,21 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(10.dp))
 
-        Text(
-            text = state.feedback?.text ?: " ",
-            style = MaterialTheme.typography.labelSmall,
-            color = if (state.feedback?.isError == true) Alert else ChalkFaint,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
+        Crossfade(
+            targetState = state.feedback,
             modifier = Modifier.fillMaxWidth(),
-        )
+            animationSpec = tween(200),
+            label = "feedback",
+        ) { feedback ->
+            Text(
+                text = feedback?.text ?: " ",
+                style = MaterialTheme.typography.labelSmall,
+                color = if (feedback?.isError == true) Alert else ChalkFaint,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                modifier = Modifier.fillMaxWidth(),
+            )
+        }
 
         Spacer(Modifier.height(10.dp))
 
@@ -342,6 +388,7 @@ private fun Header(
             color = status.color,
             label = status.label,
             detail = if (state.settings.isConfigured) state.settings.endpoint else "sin IP",
+            pulse = status.pulse,
             modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(Space.md))
@@ -649,13 +696,13 @@ private fun EndpointDialog(
     )
 }
 
-private data class Status(val color: Color, val label: String)
+private data class Status(val color: Color, val label: String, val pulse: Boolean = false)
 
 @Composable
 private fun ConnectionState.asStatus(configured: Boolean): Status = when (this) {
     is ConnectionState.Connected -> Status(Signal, "Conectada")
-    ConnectionState.Connecting -> Status(Waiting, "Conectando")
-    ConnectionState.AwaitingAuthorization -> Status(Waiting, "Autoriza en la TV")
+    ConnectionState.Connecting -> Status(Waiting, "Conectando", pulse = true)
+    ConnectionState.AwaitingAuthorization -> Status(Waiting, "Autoriza en la TV", pulse = true)
     is ConnectionState.Failed -> Status(Alert, "Sin conexion")
     ConnectionState.Disconnected -> Status(
         if (configured) ChalkFaint else Alert,

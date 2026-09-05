@@ -1,6 +1,12 @@
 package com.gabriel.tvmando.ui.components
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,6 +68,7 @@ fun BrandStatus(
     color: Color,
     label: String,
     detail: String?,
+    pulse: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val animated by animateColorAsState(color, label = "status-color")
@@ -77,7 +84,7 @@ fun BrandStatus(
         )
         Spacer(Modifier.height(2.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            StatusDot(animated)
+            StatusDot(animated, pulse)
             Spacer(Modifier.width(Space.sm))
             Text(
                 text = if (detail.isNullOrBlank()) label.uppercase() else "${label.uppercase()}  \u00B7  $detail",
@@ -90,9 +97,26 @@ fun BrandStatus(
     }
 }
 
-/** La brasa: un punto del color del estado con su halo. */
+/**
+ * La brasa: un punto del color del estado con su halo. Mientras se espera a la TV
+ * respira, apagandose y encendiendose despacio; es la unica animacion continua de la
+ * app y solo existe mientras hay algo pendiente.
+ */
 @Composable
-private fun StatusDot(color: Color) {
+private fun StatusDot(color: Color, pulse: Boolean) {
+    val breath = if (pulse) {
+        rememberInfiniteTransition(label = "brasa").animateFloat(
+            initialValue = 0.35f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 900, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "respiracion",
+        ).value
+    } else {
+        1f
+    }
     Box(
         Modifier
             .size(8.dp)
@@ -100,13 +124,13 @@ private fun StatusDot(color: Color) {
                 val radius = size.minDimension / 2
                 drawCircle(
                     brush = Brush.radialGradient(
-                        colors = listOf(color.copy(alpha = 0.55f), color.copy(alpha = 0f)),
+                        colors = listOf(color.copy(alpha = 0.55f * breath), color.copy(alpha = 0f)),
                         center = center,
                         radius = radius * 2.4f,
                     ),
                     radius = radius * 2.4f,
                 )
-                drawCircle(color, radius = radius)
+                drawCircle(color.copy(alpha = color.alpha * breath), radius = radius)
             },
     )
 }

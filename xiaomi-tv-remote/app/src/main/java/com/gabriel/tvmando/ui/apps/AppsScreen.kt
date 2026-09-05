@@ -221,6 +221,9 @@ fun AppsScreen(
                             haptics(Tap.Press)
                             onToggleFavorite(app)
                         },
+                        // Al fijar o soltar una app las fichas se recolocan deslizandose,
+                        // en vez de saltar de sitio.
+                        modifier = Modifier.animateItem(),
                     )
                 }
             }
