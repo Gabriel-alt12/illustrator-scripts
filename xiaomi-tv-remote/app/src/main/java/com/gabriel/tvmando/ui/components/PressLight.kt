@@ -165,6 +165,32 @@ fun Modifier.emberUnderline(
 }
 
 /**
+ * Raya de luz a lo largo del borde inferior, tan larga como diga [fraction]: el
+ * nivel del volumen. Siempre encendida (no es una pulsacion), pero mas tenue.
+ */
+fun Modifier.emberTrack(
+    fraction: () -> Float,
+    color: Color,
+    glow: Color,
+    inset: Dp = 18.dp,
+    thickness: Dp = 3.dp,
+    bottomInset: Dp = 7.dp,
+    glowWidth: Dp = 8.dp,
+): Modifier = drawWithContent {
+    drawContent()
+    val f = fraction().coerceIn(0f, 1f)
+    if (f <= 0f) return@drawWithContent
+    val y = size.height - bottomInset.toPx()
+    val x0 = inset.toPx()
+    val x1 = x0 + (size.width - x0 * 2) * f
+    val stroke = thickness.toPx()
+    halo(glow, 0.8f, glowWidth.toPx()) { haloColor, spread ->
+        drawLine(haloColor, Offset(x0, y), Offset(x1, y), strokeWidth = stroke + spread * 2, cap = StrokeCap.Round)
+    }
+    drawLine(color.copy(alpha = color.alpha * 0.85f), Offset(x0, y), Offset(x1, y), strokeWidth = stroke, cap = StrokeCap.Round)
+}
+
+/**
  * Halo por capas: varios trazos, cada uno mas ancho y mas tenue que el anterior. Es
  * mas barato y mas predecible que un desenfoque real, y a doce dp no se nota la
  * diferencia.

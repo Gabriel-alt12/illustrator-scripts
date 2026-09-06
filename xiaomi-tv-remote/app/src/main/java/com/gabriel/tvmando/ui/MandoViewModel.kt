@@ -13,6 +13,8 @@ import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.domain.ForceStopApp
 import com.gabriel.tvmando.domain.LaunchApp
+import com.gabriel.tvmando.domain.PowerState
+import com.gabriel.tvmando.domain.PressKey
 import com.gabriel.tvmando.domain.RawShell
 import com.gabriel.tvmando.domain.Scene
 import com.gabriel.tvmando.domain.SceneLibrary
@@ -20,19 +22,28 @@ import com.gabriel.tvmando.domain.SceneOutcome
 import com.gabriel.tvmando.domain.SceneProgress
 import com.gabriel.tvmando.domain.SceneRunner
 import com.gabriel.tvmando.domain.SearchTarget
+import com.gabriel.tvmando.domain.SetVolume
 import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.domain.TvCommand
 import com.gabriel.tvmando.domain.TvController
+import com.gabriel.tvmando.domain.TvKey
 import com.gabriel.tvmando.domain.TvQuery
+import com.gabriel.tvmando.domain.TvStatus
 import com.gabriel.tvmando.domain.decodeScreenshot
 import com.gabriel.tvmando.system.GuestRemoteServer
 import com.gabriel.tvmando.system.GuestRemoteState
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -113,7 +124,7 @@ class MandoViewModel(
      */
     val guestState: StateFlow<GuestRemoteState> = guestServer.state
 
-    private val feedback = MutableStateFlow<Feedback?>(null)
+    private val feedback = FeedbackBox()
     private val sending = MutableStateFlow(false)
     private val fingerprint = MutableStateFlow("")
 
@@ -149,7 +160,7 @@ class MandoViewModel(
     val uiState: StateFlow<MandoUiState> = combine(
         controller.state,
         settings.settings,
-        feedback,
+        feedback.state,
         sending,
         fingerprint,
     ) { connection, config, message, isSending, print ->
@@ -184,11 +195,97 @@ class MandoViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), SearchUiState())
 
+    // --- estado de la tele -------------------------------------------------
+
+    /** Cambia para forzar una consulta inmediata tras un comando que altera el estado. */
+    private val statusNonce = MutableStateFlow(0L)
+
+    /**
+     * Encendido, volumen y que suena, preguntado cada pocos segundos mientras alguien
+     * mira la app y hay sesion. Tras un comando que lo cambia (encender, volumen,
+     * play) se vuelve a preguntar enseguida, con un respiro para que la TV lo aplique.
+     * Si la consulta falla se conserva lo ultimo que se supo.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val tvStatus: StateFlow<TvStatus?> = combine(controller.state, statusNonce) { connection, nonce ->
+        connection to nonce
+    }.flatMapLatest { (connection, nonce) ->
+        if (connection !is ConnectionState.Connected) {
+            flowOf<TvStatus?>(null)
+        } else {
+            flow<TvStatus?> {
+                if (nonce > 0L) delay(STATUS_SETTLE_MS)
+                while (true) {
+                    controller.run(TvQuery.STATUS).onSuccess { emit(TvStatus.parse(it)) }
+                    delay(STATUS_EVERY_MS)
+                }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    fun refreshStatus() {
+        statusNonce.value = System.currentTimeMillis()
+    }
+
+    /**
+     * Ultimo nivel pedido desde la barra de volumen. Es un StateFlow a proposito: se
+     * queda con el valor mas reciente mientras la TV procesa el anterior, asi que
+     * arrastrar la barra de un extremo al otro no encola veinte ordenes.
+     */
+    private val requestedVolume = MutableStateFlow<Int?>(null)
+
+    fun setVolumeLevel(level: Int) {
+        requestedVolume.value = level
+    }
+
+    private val _diagnostics = MutableStateFlow<String?>(null)
+
+    /** Para Ajustes: que sabe hacer esta TV, contado en tres lineas. */
+    val diagnostics: StateFlow<String?> = _diagnostics
+
+    fun diagnose() {
+        viewModelScope.launch {
+            _diagnostics.value = "Preguntando a la TV..."
+            _diagnostics.value = controller.run(TvQuery.STATUS).fold(
+                onSuccess = { raw -> describe(TvStatus.parse(raw)) },
+                onFailure = { "La TV no respondio: ${it.message ?: "sin detalle"}" },
+            )
+        }
+    }
+
+    private fun describe(status: TvStatus): String = buildString {
+        append("Encendido: ")
+        appendLine(
+            when (status.power) {
+                PowerState.AWAKE -> "lo sabe; ahora esta encendida"
+                PowerState.ASLEEP -> "lo sabe; ahora esta en reposo"
+                PowerState.UNKNOWN -> "esta TV no lo dice"
+            },
+        )
+        append("Volumen exacto: ")
+        appendLine(status.volume?.let { "si, ${it.current} de ${it.max}" } ?: "no disponible en esta TV")
+        append("Que suena: ")
+        val playing = status.nowPlaying
+        append(
+            when {
+                !status.mediaAvailable -> "no disponible en esta TV"
+                playing == null -> "lo cuenta; ahora no suena nada"
+                else -> "${AppCatalog.describe(playing.packageName).displayName}: ${playing.title}"
+            },
+        )
+    }
+
     init {
         viewModelScope.launch {
             fingerprint.value = runCatching { controller.keyFingerprint() }.getOrDefault("")
             // Reconexion automatica al abrir la app, si ya sabemos donde esta la TV.
             if (settings.current().isConfigured) controller.connect()
+        }
+        viewModelScope.launch {
+            requestedVolume.filterNotNull().collect { level ->
+                controller.run(SetVolume(level))
+                refreshStatus()
+            }
         }
     }
 
@@ -203,7 +300,15 @@ class MandoViewModel(
                 onSuccess = { output -> Feedback(output.ifBlank { command.label }, isError = false) },
                 onFailure = { error -> Feedback(error.message ?: "No se pudo enviar", isError = true) },
             )
+            if (command.touchesStatus()) refreshStatus()
         }
+    }
+
+    /** Lo que cambia el encendido, el volumen o lo que suena, y merece re-preguntar. */
+    private fun TvCommand.touchesStatus(): Boolean = when (this) {
+        is SetVolume -> true
+        is PressKey -> key in STATUS_KEYS
+        else -> false
     }
 
     fun reconnect() {
@@ -360,6 +465,7 @@ class MandoViewModel(
                 }
             } finally {
                 sceneProgress.value = null
+                refreshStatus()
             }
         }
     }
@@ -473,8 +579,42 @@ class MandoViewModel(
         }
     }
 
+    /**
+     * El mensaje de abajo se quita solo pasados unos segundos (los errores aguantan
+     * mas) para dejar sitio a lo que este sonando en la TV. Se asigna como siempre,
+     * `feedback.value = ...`; el temporizador va dentro.
+     */
+    private inner class FeedbackBox {
+        private val flow = MutableStateFlow<Feedback?>(null)
+        private var clearing: Job? = null
+
+        val state: StateFlow<Feedback?> get() = flow
+
+        var value: Feedback?
+            get() = flow.value
+            set(message) {
+                flow.value = message
+                clearing?.cancel()
+                if (message == null) return
+                clearing = viewModelScope.launch {
+                    delay(if (message.isError) ERROR_SHOWN_MS else FEEDBACK_SHOWN_MS)
+                    if (flow.value === message) flow.value = null
+                }
+            }
+    }
+
     companion object {
         private const val SEARCH_SCENE_ID = "busqueda"
+        private const val STATUS_EVERY_MS = 10_000L
+        private const val STATUS_SETTLE_MS = 1_200L
+        private const val FEEDBACK_SHOWN_MS = 4_000L
+        private const val ERROR_SHOWN_MS = 8_000L
+
+        private val STATUS_KEYS = setOf(
+            TvKey.POWER, TvKey.SLEEP, TvKey.WAKEUP,
+            TvKey.VOLUME_UP, TvKey.VOLUME_DOWN, TvKey.VOLUME_MUTE,
+            TvKey.MEDIA_PLAY_PAUSE, TvKey.MEDIA_NEXT, TvKey.MEDIA_PREVIOUS,
+        )
 
         fun factory(container: AppContainer): ViewModelProvider.Factory = viewModelFactory {
             initializer {

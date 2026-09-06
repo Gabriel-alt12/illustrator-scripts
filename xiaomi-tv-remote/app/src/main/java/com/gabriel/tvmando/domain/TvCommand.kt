@@ -159,13 +159,13 @@ data class SetBrightness(val value: Int) : TvCommand {
 /**
  * Fija el volumen absoluto del canal multimedia.
  *
- * `media volume` no esta en todas las builds de Google TV. Si tu TV lo ignora,
- * sustituye el paso de la escena por varias pulsaciones de volumen: eso siempre
- * funciona, solo que a ciegas.
+ * Va por `cmd media_session`, que es lo que hay detras del atajo `media` y existe
+ * en mas builds. Si tu TV lo ignora, la barra de volumen de la app lo nota (la
+ * consulta de estado no devuelve nivel) y se queda con subir y bajar a ciegas.
  */
 data class SetVolume(val level: Int) : TvCommand {
     override val shell: String
-        get() = "media volume --stream 3 --set ${level.coerceIn(0, 100)}"
+        get() = "cmd media_session volume --stream 3 --set ${level.coerceIn(0, 100)}"
     override val label: String get() = "Volumen ${level.coerceIn(0, 100)}"
 }
 
@@ -219,6 +219,19 @@ enum class TvQuery(override val shell: String, override val label: String) : TvC
      */
     SCREENSHOT("screencap -p | base64", "Captura de la TV"),
     WLAN("ip addr show wlan0", "Red"),
+
+    /**
+     * Encendido, volumen exacto y que suena, en una sola ida y vuelta: se pregunta
+     * cada pocos segundos mientras la app esta a la vista y no merece tres viajes.
+     * Cada tramo va precedido de una marca para que [TvStatus.parse] sepa donde
+     * empieza cada cosa aunque alguna consulta falle o no exista en esa TV.
+     */
+    STATUS(
+        "echo '#power'; dumpsys power 2>/dev/null | grep -m1 -E 'mWakefulness=|Display Power: state='; " +
+            "echo '#volume'; cmd media_session volume --stream 3 --get 2>&1; " +
+            "echo '#media'; dumpsys media_session 2>/dev/null | head -c 24000",
+        "Estado de la TV",
+    ),
 }
 
 /** Escotilla de escape para comandos sueltos (util en Ajustes y al depurar). */

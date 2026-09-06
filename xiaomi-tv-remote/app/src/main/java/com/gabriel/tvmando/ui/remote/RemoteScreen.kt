@@ -26,9 +26,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import com.gabriel.tvmando.domain.PowerState
 import com.gabriel.tvmando.domain.PressKey
 import com.gabriel.tvmando.domain.TvCommand
 import com.gabriel.tvmando.domain.TvKey
+import com.gabriel.tvmando.domain.TvStatus
 import com.gabriel.tvmando.ui.components.Dpad
 import com.gabriel.tvmando.ui.components.PillKey
 import com.gabriel.tvmando.ui.components.PowerKey
@@ -52,6 +54,10 @@ fun RemoteScreen(
     onCommand: (TvCommand) -> Unit,
     haptics: (Tap) -> Unit,
     modifier: Modifier = Modifier,
+    /** Lo ultimo que se sabe de la TV: si esta encendida y a que volumen. */
+    status: TvStatus? = null,
+    onVolumeLevel: ((Int) -> Unit)? = null,
+    onPowerLongPress: (() -> Unit)? = null,
 ) {
     fun press(key: TvKey, feel: Tap = Tap.Press) {
         haptics(feel)
@@ -160,6 +166,8 @@ fun RemoteScreen(
             iconMute = Icons.Rounded.VolumeOff,
             iconUp = Icons.Rounded.Add,
             enabled = enabled,
+            level = status?.volume,
+            onLevelChange = onVolumeLevel,
         )
 
         Spacer(Modifier.height(Space.lg))
@@ -168,6 +176,12 @@ fun RemoteScreen(
             onClick = { press(TvKey.POWER, Tap.Confirm) },
             icon = Icons.Rounded.PowerSettingsNew,
             enabled = enabled,
+            awake = when (status?.power) {
+                PowerState.AWAKE -> true
+                PowerState.ASLEEP -> false
+                else -> null
+            },
+            onLongClick = onPowerLongPress,
         )
 
     }

@@ -11,6 +11,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -25,6 +26,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -34,6 +36,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Apps
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.PlaylistPlay
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material.icons.rounded.Search
@@ -43,6 +47,7 @@ import androidx.compose.material.icons.rounded.Tv
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -71,13 +76,19 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.gabriel.tvmando.data.ThemeMode
+import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.ConnectionState
+import com.gabriel.tvmando.domain.NowPlaying
+import com.gabriel.tvmando.domain.PowerState
+import com.gabriel.tvmando.domain.PressKey
+import com.gabriel.tvmando.domain.TvKey
 import com.gabriel.tvmando.ui.apps.AppsScreen
 import com.gabriel.tvmando.ui.components.BrandStatus
 import com.gabriel.tvmando.ui.components.GhostButton
@@ -123,11 +134,14 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     val searchState by viewModel.searchState.collectAsStateWithLifecycle()
     val guestState by viewModel.guestState.collectAsStateWithLifecycle()
     val screenshot by viewModel.screenshot.collectAsStateWithLifecycle()
+    val tvStatus by viewModel.tvStatus.collectAsStateWithLifecycle()
+    val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
 
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showScreen by rememberSaveable { mutableStateOf(false) }
+    var showNowPlaying by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val askNotifications = rememberLauncherForActivityResult(
@@ -163,6 +177,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
         Header(
             state = state,
             destination = destination,
+            power = tvStatus?.power,
             onReconnect = {
                 haptics(Tap.Press)
                 viewModel.reconnect()
@@ -230,6 +245,11 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     enabled = state.controlsEnabled,
                     onCommand = viewModel::send,
                     haptics = haptics,
+                    status = tvStatus,
+                    onVolumeLevel = { level ->
+                        haptics(Tap.Press)
+                        viewModel.setVolumeLevel(level)
+                    },
                 )
 
                 Destination.APPS -> AppsScreen(
@@ -271,21 +291,14 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
 
         Spacer(Modifier.height(10.dp))
 
-        Crossfade(
-            targetState = state.feedback,
-            modifier = Modifier.fillMaxWidth(),
-            animationSpec = tween(200),
-            label = "feedback",
-        ) { feedback ->
-            Text(
-                text = feedback?.text ?: " ",
-                style = MaterialTheme.typography.labelSmall,
-                color = if (feedback?.isError == true) Alert else ChalkFaint,
-                textAlign = TextAlign.Center,
-                maxLines = 2,
-                modifier = Modifier.fillMaxWidth(),
-            )
-        }
+        BottomStrip(
+            feedback = state.feedback,
+            nowPlaying = tvStatus?.nowPlaying,
+            onNowPlayingTap = {
+                haptics(Tap.Press)
+                showNowPlaying = true
+            },
+        )
 
         Spacer(Modifier.height(10.dp))
 
@@ -340,6 +353,22 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
         )
     }
 
+    if (showNowPlaying) {
+        val playing = tvStatus?.nowPlaying
+        // Si lo que sonaba se para mientras la hoja esta abierta, se cierra sola.
+        LaunchedEffect(playing == null) { if (playing == null) showNowPlaying = false }
+        if (playing != null) {
+            NowPlayingSheet(
+                playing = playing,
+                onKey = { key ->
+                    haptics(Tap.Press)
+                    viewModel.send(PressKey(key))
+                },
+                onDismiss = { showNowPlaying = false },
+            )
+        }
+    }
+
     if (showSettings) {
         SettingsSheet(
             host = state.settings.host,
@@ -374,6 +403,8 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                 showSettings = false
                 viewModel.repair()
             },
+            diagnostics = diagnostics,
+            onDiagnose = { viewModel.diagnose() },
         )
     }
 }
@@ -382,6 +413,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
 private fun Header(
     state: MandoUiState,
     destination: Destination,
+    power: PowerState?,
     onReconnect: () -> Unit,
     onSettings: () -> Unit,
     onSeeScreen: () -> Unit,
@@ -395,7 +427,13 @@ private fun Header(
         BrandStatus(
             color = status.color,
             label = status.label,
-            detail = if (state.settings.isConfigured) state.settings.endpoint else "sin IP",
+            // Con la TV a la vista, el detalle cuenta si esta encendida; la IP solo
+            // interesa mientras no hay sesion, y en Ajustes sigue estando.
+            detail = when (power) {
+                PowerState.AWAKE -> "encendida"
+                PowerState.ASLEEP -> "en reposo"
+                else -> if (state.settings.isConfigured) state.settings.endpoint else "sin IP"
+            },
             pulse = status.pulse,
             modifier = Modifier.weight(1f),
         )
@@ -546,6 +584,8 @@ private fun SettingsSheet(
     onDismiss: () -> Unit,
     onSave: (String, String) -> Unit,
     onRepair: () -> Unit,
+    diagnostics: String?,
+    onDiagnose: () -> Unit,
 ) {
     var hostField by rememberSaveable(host) { mutableStateOf(host) }
     var portField by rememberSaveable(port) { mutableStateOf(port) }
@@ -669,7 +709,186 @@ private fun SettingsSheet(
             ) {
                 Text("Generar clave nueva y reemparejar", style = MaterialTheme.typography.labelLarge, color = EmberInk)
             }
+
+            SectionTitle("Diagnostico")
+            Text(
+                text = "Pregunta a la tele que sabe hacer: si dice si esta encendida, si acepta " +
+                    "un volumen exacto y si cuenta lo que esta reproduciendo.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = ChalkFaint,
+            )
+            TextButton(onClick = onDiagnose, contentPadding = PaddingValues(0.dp)) {
+                Text("Preguntar a la tele", style = MaterialTheme.typography.labelLarge, color = EmberInk)
+            }
+            if (diagnostics != null) {
+                Text(text = diagnostics, style = MaterialTheme.typography.bodyMedium, color = Chalk)
+            }
         }
+    }
+}
+
+/**
+ * La tira de abajo: el ultimo mensaje mientras dure y, si no hay ninguno, lo que esta
+ * sonando en la TV. Altura fija para que el mando no baile al cambiar de una cosa a
+ * otra.
+ */
+@Composable
+private fun BottomStrip(
+    feedback: Feedback?,
+    nowPlaying: NowPlaying?,
+    onNowPlayingTap: () -> Unit,
+) {
+    val key = when {
+        feedback != null -> "f:" + feedback.text
+        nowPlaying != null -> "n:" + nowPlaying.packageName + ":" + nowPlaying.title + ":" + nowPlaying.isPlaying
+        else -> ""
+    }
+    Crossfade(
+        targetState = key,
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(STRIP_HEIGHT),
+        animationSpec = tween(200),
+        label = "tira",
+    ) { current ->
+        when {
+            current.startsWith("f:") && feedback != null -> Text(
+                text = feedback.text,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (feedback.isError) Alert else ChalkFaint,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = Space.xs),
+            )
+
+            current.startsWith("n:") && nowPlaying != null -> Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(STRIP_HEIGHT)
+                    .clip(RoundedCornerShape(Radius.button))
+                    .clickable(onClick = onNowPlayingTap)
+                    .padding(horizontal = Space.sm),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = if (nowPlaying.isPlaying) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
+                    contentDescription = null,
+                    tint = Ember,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(Space.sm))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        text = nowPlaying.title,
+                        style = MaterialTheme.typography.labelLarge,
+                        color = Chalk,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    Text(
+                        text = buildString {
+                            append(AppCatalog.describe(nowPlaying.packageName).displayName.uppercase())
+                            nowPlaying.subtitle?.let {
+                                append("  \u00B7  ")
+                                append(it)
+                            }
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = ChalkMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+            }
+
+            else -> Spacer(Modifier.fillMaxWidth())
+        }
+    }
+}
+
+private val STRIP_HEIGHT = 44.dp
+
+/** Detalle de lo que suena, con los controles de transporte a mano. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NowPlayingSheet(
+    playing: NowPlaying,
+    onKey: (TvKey) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        sheetState = sheetState,
+        shape = RoundedCornerShape(topStart = Radius.tile, topEnd = Radius.tile),
+        containerColor = InkRaised,
+        contentColor = Chalk,
+        dragHandle = { BottomSheetDefaults.DragHandle(color = Hairline) },
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Space.xl)
+                .padding(bottom = Space.xxl),
+            verticalArrangement = Arrangement.spacedBy(Space.md),
+        ) {
+            Text(
+                text = "AHORA EN LA TELE",
+                style = MaterialTheme.typography.labelMedium,
+                color = ChalkMuted,
+            )
+            Text(
+                text = playing.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = Chalk,
+            )
+            playing.subtitle?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyLarge, color = ChalkMuted)
+            }
+            Text(
+                text = buildString {
+                    append(AppCatalog.describe(playing.packageName).displayName)
+                    append("  \u00B7  ")
+                    append(if (playing.isPlaying) "Reproduciendo" else "En pausa")
+                    playing.positionMs?.let {
+                        append("  \u00B7  ")
+                        append(formatPosition(it))
+                    }
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = ChalkFaint,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                TextButton(onClick = { onKey(TvKey.MEDIA_PREVIOUS) }) {
+                    Text("Anterior", style = MaterialTheme.typography.labelLarge, color = EmberInk)
+                }
+                TextButton(onClick = { onKey(TvKey.MEDIA_PLAY_PAUSE) }) {
+                    Text(
+                        text = if (playing.isPlaying) "Pausar" else "Reanudar",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = EmberInk,
+                    )
+                }
+                TextButton(onClick = { onKey(TvKey.MEDIA_NEXT) }) {
+                    Text("Siguiente", style = MaterialTheme.typography.labelLarge, color = EmberInk)
+                }
+            }
+        }
+    }
+}
+
+/** 41:07 o 1:02:15, como en la propia TV. */
+private fun formatPosition(ms: Long): String {
+    val total = ms / 1000
+    val hours = total / 3600
+    val minutes = (total % 3600) / 60
+    val seconds = total % 60
+    return if (hours > 0) {
+        "%d:%02d:%02d".format(hours, minutes, seconds)
+    } else {
+        "%d:%02d".format(minutes, seconds)
     }
 }
 
