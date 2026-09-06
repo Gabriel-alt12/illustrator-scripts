@@ -128,7 +128,7 @@ fun TimersSheet(
                 Text(
                     text = "Programado ${describeWhen(wake.at)}" +
                         (wake.sceneId?.let { id -> scenes.firstOrNull { it.id == id }?.name }
-                            ?.let { "  ·  $it" } ?: "  ·  solo encender"),
+                            ?.let { "  \u00B7  $it" } ?: "  \u00B7  solo encender"),
                     style = MaterialTheme.typography.bodyLarge,
                     color = Chalk,
                 )

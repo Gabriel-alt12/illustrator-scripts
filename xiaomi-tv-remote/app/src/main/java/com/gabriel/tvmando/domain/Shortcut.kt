@@ -130,7 +130,7 @@ object SharedLinkParser {
         title = SPACES.replace(title, " ").trim()
         title = LEADING_NOISE.replace(title, "")
         title = TRAILING_NOISE.replace(title, "")
-        title = title.trim().trim('-', '|', ':', ',', '.', ' ', ' ')
+        title = title.trim().trim('-', '|', ':', ',', '.', ' ')
         return title.takeIf { it.isNotBlank() }
     }
 
@@ -162,7 +162,7 @@ object SharedLinkParser {
 
     private val URL = Regex("""https?://\S+""")
     private val HOST = Regex("""https?://([^/?#\s]+)""")
-    private val QUOTES = Regex("""["«»“”‘’']""")
+    private val QUOTES = Regex("""["\u00AB\u00BB\u201C\u201D\u2018\u2019']""")
     private val SPACES = Regex("""\s+""")
     private val LEADING_NOISE = Regex(
         """^(?:check out|mira|ver|watch|echa un vistazo a|te recomiendo|descubre)\s+""",
