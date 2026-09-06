@@ -13,6 +13,7 @@ import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.domain.ForceStopApp
 import com.gabriel.tvmando.domain.LaunchApp
+import com.gabriel.tvmando.domain.OpenLink
 import com.gabriel.tvmando.domain.PowerState
 import com.gabriel.tvmando.domain.PressKey
 import com.gabriel.tvmando.domain.RawShell
@@ -23,6 +24,9 @@ import com.gabriel.tvmando.domain.SceneProgress
 import com.gabriel.tvmando.domain.SceneRunner
 import com.gabriel.tvmando.domain.SearchTarget
 import com.gabriel.tvmando.domain.SetVolume
+import com.gabriel.tvmando.domain.SharedLink
+import com.gabriel.tvmando.domain.SharedLinkParser
+import com.gabriel.tvmando.domain.Shortcut
 import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.domain.TvCommand
 import com.gabriel.tvmando.domain.TvController
@@ -451,23 +455,118 @@ class MandoViewModel(
     /** Solo una escena a la vez: encadenar dos deja la TV en un estado imposible. */
     fun runScene(scene: Scene) {
         sceneJob?.cancel()
-        sceneJob = viewModelScope.launch {
-            try {
-                val outcome = sceneRunner.run(scene) { progress -> sceneProgress.value = progress }
-                feedback.value = when (outcome) {
-                    is SceneOutcome.Completed ->
-                        Feedback("${scene.name}: hecho", isError = false)
+        sceneJob = viewModelScope.launch { execute(scene) }
+    }
 
-                    is SceneOutcome.Failed -> Feedback(
-                        "${scene.name}: fallo en el paso ${outcome.stepIndex + 1}. ${outcome.message}",
-                        isError = true,
-                    )
-                }
-            } finally {
-                sceneProgress.value = null
-                refreshStatus()
+    private suspend fun execute(scene: Scene): SceneOutcome = try {
+        val outcome = sceneRunner.run(scene) { progress -> sceneProgress.value = progress }
+        feedback.value = when (outcome) {
+            is SceneOutcome.Completed ->
+                Feedback("${scene.name}: hecho", isError = false)
+
+            is SceneOutcome.Failed -> Feedback(
+                "${scene.name}: fallo en el paso ${outcome.stepIndex + 1}. ${outcome.message}",
+                isError = true,
+            )
+        }
+        outcome
+    } finally {
+        sceneProgress.value = null
+        refreshStatus()
+    }
+
+    // --- accesos directos ---------------------------------------------------
+
+    val shortcuts: StateFlow<List<Shortcut>> = settings.shortcuts
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    private val _pendingShare = MutableStateFlow<SharedLink?>(null)
+
+    /** Lo ultimo que llego por "Compartir", a la espera de que el usuario lo guarde. */
+    val pendingShare: StateFlow<SharedLink?> = _pendingShare
+
+    fun receiveShare(text: String?, subject: String?) {
+        val link = SharedLinkParser.parse(text, subject)
+        if (link == null) {
+            feedback.value = Feedback("Lo compartido no traia ningun enlace", isError = true)
+            return
+        }
+        _pendingShare.value = link
+    }
+
+    fun dismissShare() {
+        _pendingShare.value = null
+    }
+
+    fun newShortcutId(): String = "s" + System.currentTimeMillis().toString(36)
+
+    /** Alta o edicion: si el id ya existe se reemplaza; si no, entra el primero. */
+    fun saveShortcut(shortcut: Shortcut) {
+        viewModelScope.launch {
+            val current = settings.shortcuts.first()
+            val updated = if (current.any { it.id == shortcut.id }) {
+                current.map { if (it.id == shortcut.id) shortcut else it }
+            } else {
+                listOf(shortcut) + current
+            }
+            settings.saveShortcuts(updated)
+            feedback.value = Feedback("${shortcut.title} guardada", isError = false)
+        }
+    }
+
+    fun deleteShortcut(id: String) {
+        viewModelScope.launch {
+            settings.saveShortcuts(settings.shortcuts.first().filterNot { it.id == id })
+        }
+    }
+
+    /** Desde un icono del escritorio o un atajo del lanzador. */
+    fun launchShortcutById(id: String) {
+        viewModelScope.launch {
+            val shortcut = settings.shortcuts.first().firstOrNull { it.id == id }
+            if (shortcut == null) {
+                feedback.value = Feedback("Ese acceso directo ya no existe", isError = true)
+            } else {
+                launchShortcut(shortcut)
             }
         }
+    }
+
+    /**
+     * Abre el enlace en la TV y, si toca, pulsa OK para que arranque el "Reanudar" de
+     * la ficha. Si no hay enlace o la app de la TV no lo entiende (am start lo dice
+     * en su salida), plan B: buscar por nombre dentro de la app.
+     */
+    fun launchShortcut(shortcut: Shortcut) {
+        sceneJob?.cancel()
+        sceneJob = viewModelScope.launch {
+            feedback.value = Feedback("Abriendo ${shortcut.title}", isError = false)
+            var opened = false
+            val url = shortcut.url
+            if (!url.isNullOrBlank()) {
+                val result = controller.run(OpenLink(url, shortcut.packageName))
+                opened = result.isSuccess && !OpenLink.failed(result.getOrDefault(""))
+                if (opened && shortcut.autoOk) {
+                    delay(AUTO_OK_DELAY_MS)
+                    controller.run(PressKey(TvKey.DPAD_CENTER))
+                }
+            }
+            if (!opened) {
+                val packageName = shortcut.packageName
+                if (packageName == null) {
+                    feedback.value = Feedback("La TV no sabe abrir ese enlace", isError = true)
+                } else {
+                    val fast = SearchTarget.App(packageName, "").key in settings.fastTypingTargets.first()
+                    execute(SceneLibrary.playFirstResult(shortcut.title, packageName, slowly = !fast))
+                }
+            }
+            refreshStatus()
+        }
+    }
+
+    /** Un aviso desde la UI que no viene de la TV (por ejemplo, el lanzador dijo que no). */
+    fun notify(text: String, isError: Boolean = false) {
+        feedback.value = Feedback(text, isError)
     }
 
     fun cancelScene() {
@@ -609,6 +708,7 @@ class MandoViewModel(
         private const val STATUS_SETTLE_MS = 1_200L
         private const val FEEDBACK_SHOWN_MS = 4_000L
         private const val ERROR_SHOWN_MS = 8_000L
+        private const val AUTO_OK_DELAY_MS = 5_000L
 
         private val STATUS_KEYS = setOf(
             TvKey.POWER, TvKey.SLEEP, TvKey.WAKEUP,

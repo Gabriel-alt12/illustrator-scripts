@@ -11,6 +11,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.gabriel.tvmando.domain.Scene
 import com.gabriel.tvmando.domain.SceneCodec
 import com.gabriel.tvmando.domain.SceneLibrary
+import com.gabriel.tvmando.domain.Shortcut
+import com.gabriel.tvmando.domain.ShortcutCodec
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -98,6 +100,17 @@ class SettingsRepository(private val context: Context) {
     /** Vuelve a las tres escenas de la especificacion. */
     suspend fun restoreDefaultScenes() {
         context.dataStore.edit { prefs -> prefs.remove(KEY_SCENES) }
+    }
+
+    // --- accesos directos ---------------------------------------------------
+
+    /** Series, episodios y videos guardados, los mas nuevos primero. */
+    val shortcuts: Flow<List<Shortcut>> = context.dataStore.data.map { prefs ->
+        prefs[KEY_SHORTCUTS]?.let { ShortcutCodec.decode(it) }.orEmpty()
+    }
+
+    suspend fun saveShortcuts(shortcuts: List<Shortcut>) {
+        context.dataStore.edit { prefs -> prefs[KEY_SHORTCUTS] = ShortcutCodec.encode(shortcuts) }
     }
 
     // --- favoritos ----------------------------------------------------------
@@ -200,6 +213,7 @@ class SettingsRepository(private val context: Context) {
         val KEY_SCENES = stringPreferencesKey("scenes")
         val KEY_SEARCH_HISTORY = stringPreferencesKey("search_history")
         val KEY_FAVORITES = stringPreferencesKey("favorite_apps")
+        val KEY_SHORTCUTS = stringPreferencesKey("shortcuts")
         val KEY_FAST_TYPING = stringPreferencesKey("fast_typing_targets")
         val KEY_PORT = intPreferencesKey("tv_port")
         val KEY_MODEL = stringPreferencesKey("tv_model")

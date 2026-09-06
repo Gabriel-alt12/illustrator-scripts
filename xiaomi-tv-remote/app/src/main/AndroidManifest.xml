@@ -52,9 +52,13 @@
         android:allowBackup="false"
         android:fullBackupContent="false">
 
+        <!-- singleTask: al compartir desde Netflix o al tocar un acceso directo del
+             escritorio, la instancia que ya existe recibe el intent en vez de abrirse
+             otra Ember dentro de la tarea de la otra app. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
+            android:launchMode="singleTask"
             android:screenOrientation="portrait"
             android:configChanges="orientation|screenSize|keyboardHidden"
             android:windowSoftInputMode="adjustResize"
@@ -62,6 +66,13 @@
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- Ember como destino de "Compartir": una serie enviada desde Netflix,
+                 Prime Video o YouTube se guarda como acceso directo. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
             </intent-filter>
         </activity>
 

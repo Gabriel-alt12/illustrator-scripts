@@ -1,5 +1,6 @@
 package com.gabriel.tvmando
 
+import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
@@ -46,6 +47,9 @@ class MainActivity : ComponentActivity() {
             SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
         }
         enableEdgeToEdge(statusBarStyle = bars, navigationBarStyle = bars)
+        // Solo la primera vez: al girar o recrear, el intent es el mismo y ya se
+        // atendio. Los siguientes llegan por onNewIntent gracias a singleTask.
+        if (savedInstanceState == null) handle(intent)
 
         setContent {
             val settings by repository.settings.collectAsStateWithLifecycle(initialValue = initial)
@@ -66,6 +70,27 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handle(intent)
+    }
+
+    /** Lo compartido desde otra app, o un acceso directo del escritorio. */
+    private fun handle(intent: Intent?) {
+        when (intent?.action) {
+            Intent.ACTION_SEND -> if (intent.type?.startsWith("text/") == true) {
+                viewModel.receiveShare(
+                    text = intent.getStringExtra(Intent.EXTRA_TEXT),
+                    subject = intent.getStringExtra(Intent.EXTRA_SUBJECT),
+                )
+            }
+
+            ACTION_SHORTCUT -> intent.getStringExtra(EXTRA_SHORTCUT_ID)?.let { id ->
+                viewModel.launchShortcutById(id)
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Al volver de segundo plano la TV puede haber cerrado el socket: que el
@@ -77,6 +102,11 @@ class MainActivity : ComponentActivity() {
     private fun paintWindow(dark: Boolean) {
         val colors = if (dark) DarkEmberColors else LightEmberColors
         window.setBackgroundDrawable(ColorDrawable(colors.ink.toArgb()))
+    }
+
+    companion object {
+        const val ACTION_SHORTCUT = "com.gabriel.tvmando.action.SHORTCUT"
+        const val EXTRA_SHORTCUT_ID = "shortcut_id"
     }
 
     /** Lo mismo que [resolveDark], pero antes de que exista la composicion. */

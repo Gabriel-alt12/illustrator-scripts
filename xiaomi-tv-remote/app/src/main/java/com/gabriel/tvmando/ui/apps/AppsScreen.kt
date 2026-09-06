@@ -39,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.gabriel.tvmando.domain.Shortcut
 import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.domain.matches
 import com.gabriel.tvmando.ui.AppsUiState
@@ -73,6 +74,10 @@ fun AppsScreen(
     onForceStop: (TvApp) -> Unit,
     onToggleFavorite: (TvApp) -> Unit,
     haptics: (Tap) -> Unit,
+    shortcuts: List<Shortcut>,
+    onOpenShortcut: (Shortcut) -> Unit,
+    onShortcutMenu: (Shortcut) -> Unit,
+    onAddShortcut: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // Al conectar (o reconectar) se pide la lista una vez.
@@ -90,6 +95,17 @@ fun AppsScreen(
     }
 
     Column(modifier = modifier.fillMaxSize()) {
+        // Lo que se esta viendo va arriba del todo: es a lo que se vuelve cada noche.
+        ShortcutShelf(
+            shortcuts = shortcuts,
+            enabled = enabled,
+            onOpen = onOpenShortcut,
+            onMenu = onShortcutMenu,
+            onAdd = onAddShortcut,
+        )
+
+        Spacer(Modifier.height(18.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,

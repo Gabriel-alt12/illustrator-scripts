@@ -114,6 +114,27 @@ data class LaunchApp(val packageName: String) : TvCommand {
     override val label: String get() = "Abrir $packageName"
 }
 
+/**
+ * Abre un enlace en la TV, dentro de la app que toque si se sabe cual es.
+ *
+ * Es lo que hay detras de los accesos directos: Netflix, YouTube o Disney+ abren su
+ * propio enlace en la ficha o el episodio exacto. `am start` devuelve 0 aunque no
+ * encuentre quien lo abra; el fallo hay que leerlo en su salida, ver [failed].
+ */
+data class OpenLink(val url: String, val packageName: String? = null) : TvCommand {
+    override val shell: String
+        get() = "am start -a android.intent.action.VIEW -d ${url.shellQuoted()}" +
+            (packageName?.let { " " + it.shellQuoted() } ?: "")
+    override val label: String get() = "Abrir enlace"
+
+    companion object {
+        fun failed(output: String): Boolean =
+            output.contains("Error:") ||
+                output.contains("unable to resolve") ||
+                output.contains("does not exist")
+    }
+}
+
 /** Fuerza el cierre de una app (pulsacion larga en la pantalla de Apps). */
 data class ForceStopApp(val packageName: String) : TvCommand {
     override val shell: String get() = "am force-stop ${packageName.shellQuoted()}"

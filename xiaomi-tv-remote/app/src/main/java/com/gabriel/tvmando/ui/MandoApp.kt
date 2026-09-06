@@ -88,8 +88,13 @@ import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.domain.NowPlaying
 import com.gabriel.tvmando.domain.PowerState
 import com.gabriel.tvmando.domain.PressKey
+import com.gabriel.tvmando.domain.Shortcut
 import com.gabriel.tvmando.domain.TvKey
+import com.gabriel.tvmando.system.HomeShortcuts
 import com.gabriel.tvmando.ui.apps.AppsScreen
+import com.gabriel.tvmando.ui.apps.ShortcutDraft
+import com.gabriel.tvmando.ui.apps.ShortcutMenuSheet
+import com.gabriel.tvmando.ui.apps.ShortcutSheet
 import com.gabriel.tvmando.ui.components.BrandStatus
 import com.gabriel.tvmando.ui.components.GhostButton
 import com.gabriel.tvmando.ui.components.NavBar
@@ -136,12 +141,16 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     val screenshot by viewModel.screenshot.collectAsStateWithLifecycle()
     val tvStatus by viewModel.tvStatus.collectAsStateWithLifecycle()
     val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
+    val shortcuts by viewModel.shortcuts.collectAsStateWithLifecycle()
+    val pendingShare by viewModel.pendingShare.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
 
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
     var showSettings by rememberSaveable { mutableStateOf(false) }
     var showScreen by rememberSaveable { mutableStateOf(false) }
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
+    var shortcutDraft by remember { mutableStateOf<ShortcutDraft?>(null) }
+    var shortcutMenu by remember { mutableStateOf<Shortcut?>(null) }
 
     val context = LocalContext.current
     val askNotifications = rememberLauncherForActivityResult(
@@ -151,6 +160,24 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
         // guardar una preferencia que el sistema no va a dejar cumplir.
         if (granted) viewModel.setPersistentRemote(true)
     }
+
+    // Lo compartido desde otra app abre la hoja de guardar ya rellena, en la pestana
+    // donde va a aparecer.
+    LaunchedEffect(pendingShare) {
+        val link = pendingShare ?: return@LaunchedEffect
+        shortcutDraft = ShortcutDraft(
+            title = link.title,
+            url = link.url,
+            packageName = link.packageName,
+            // La ficha de una serie necesita un OK para reanudar; un episodio o un
+            // video arrancan solos.
+            autoOk = link.url.contains("/title/"),
+        )
+        destination = Destination.APPS
+    }
+
+    // Los mas recientes, tambien como atajos del icono de la app en el lanzador.
+    LaunchedEffect(shortcuts) { HomeShortcuts.publish(context, shortcuts) }
 
     // Si algo falla, el movil lo dice sin que haya que mirar la pantalla.
     LaunchedEffect(state.feedback) {
@@ -262,6 +289,16 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     onForceStop = viewModel::forceStopApp,
                     onToggleFavorite = viewModel::toggleFavorite,
                     haptics = haptics,
+                    shortcuts = shortcuts,
+                    onOpenShortcut = { shortcut ->
+                        haptics(Tap.Confirm)
+                        viewModel.launchShortcut(shortcut)
+                    },
+                    onShortcutMenu = { shortcut ->
+                        haptics(Tap.Press)
+                        shortcutMenu = shortcut
+                    },
+                    onAddShortcut = { shortcutDraft = ShortcutDraft() },
                 )
 
                 Destination.SEARCH -> SearchScreen(
@@ -364,9 +401,73 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     haptics(Tap.Press)
                     viewModel.send(PressKey(key))
                 },
+                onSave = {
+                    showNowPlaying = false
+                    shortcutDraft = ShortcutDraft(title = playing.title, packageName = playing.packageName)
+                },
                 onDismiss = { showNowPlaying = false },
             )
         }
+    }
+
+    shortcutDraft?.let { draft ->
+        ShortcutSheet(
+            draft = draft,
+            apps = appsState.apps,
+            onSave = { saved ->
+                val existing = shortcuts.firstOrNull { it.id == draft.id }
+                viewModel.saveShortcut(
+                    Shortcut(
+                        id = draft.id ?: viewModel.newShortcutId(),
+                        title = saved.title,
+                        packageName = saved.packageName,
+                        url = saved.url.ifBlank { null },
+                        autoOk = saved.autoOk,
+                        createdAt = existing?.createdAt ?: System.currentTimeMillis(),
+                    ),
+                )
+                viewModel.dismissShare()
+                shortcutDraft = null
+            },
+            onDismiss = {
+                viewModel.dismissShare()
+                shortcutDraft = null
+            },
+        )
+    }
+
+    shortcutMenu?.let { shortcut ->
+        ShortcutMenuSheet(
+            shortcut = shortcut,
+            onOpen = {
+                shortcutMenu = null
+                haptics(Tap.Confirm)
+                viewModel.launchShortcut(shortcut)
+            },
+            onEdit = {
+                shortcutMenu = null
+                shortcutDraft = ShortcutDraft(
+                    id = shortcut.id,
+                    title = shortcut.title,
+                    url = shortcut.url.orEmpty(),
+                    packageName = shortcut.packageName,
+                    autoOk = shortcut.autoOk,
+                )
+            },
+            onPin = {
+                shortcutMenu = null
+                if (HomeShortcuts.pin(context, shortcut)) {
+                    viewModel.notify("Android te pide confirmar el icono en la pantalla de inicio")
+                } else {
+                    viewModel.notify("Este lanzador no deja fijar accesos directos", isError = true)
+                }
+            },
+            onDelete = {
+                shortcutMenu = null
+                viewModel.deleteShortcut(shortcut.id)
+            },
+            onDismiss = { shortcutMenu = null },
+        )
     }
 
     if (showSettings) {
@@ -816,6 +917,7 @@ private val STRIP_HEIGHT = 44.dp
 private fun NowPlayingSheet(
     playing: NowPlaying,
     onKey: (TvKey) -> Unit,
+    onSave: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -874,6 +976,15 @@ private fun NowPlayingSheet(
                 TextButton(onClick = { onKey(TvKey.MEDIA_NEXT) }) {
                     Text("Siguiente", style = MaterialTheme.typography.labelLarge, color = EmberInk)
                 }
+            }
+            // Lo que se esta viendo, a la estanteria sin buscar ningun enlace: el
+            // titulo y la app ya los ha dicho la TV.
+            TextButton(onClick = onSave, contentPadding = PaddingValues(0.dp)) {
+                Text(
+                    text = "Guardar como acceso directo",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = EmberInk,
+                )
             }
         }
     }

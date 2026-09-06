@@ -155,6 +155,23 @@ object SceneLibrary {
         }
         return Scene(id = "busqueda", name = "Buscar $query", steps = steps)
     }
+
+    /**
+     * Plan B de los accesos directos, para las apps que no entienden enlaces: abrir
+     * la app, buscar por nombre y darle a OK dos veces (el primer resultado y, ya en
+     * su ficha, reanudar). Va a ciegas, de ahi las esperas generosas.
+     */
+    fun playFirstResult(query: String, packageName: String, slowly: Boolean = true): Scene = Scene(
+        id = "acceso",
+        name = "Buscar $query",
+        steps = listOf(
+            SceneStep.of(LaunchApp(packageName), delayMs = 3_500),
+            SceneStep.of(if (slowly) TypeKeys(query) else TypeText(query), delayMs = 400),
+            SceneStep.of(PressKey(TvKey.ENTER), delayMs = 3_000),
+            SceneStep.of(PressKey(TvKey.DPAD_CENTER), delayMs = 2_500),
+            SceneStep.of(PressKey(TvKey.DPAD_CENTER)),
+        ),
+    )
 }
 
 /** Donde escribir el texto de busqueda. */

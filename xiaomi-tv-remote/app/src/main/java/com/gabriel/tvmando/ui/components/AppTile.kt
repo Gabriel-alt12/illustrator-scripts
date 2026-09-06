@@ -191,6 +191,10 @@ fun AppTile(
     }
 }
 
+/** Color de fondo para cualquier pieza que represente a una app, o gris sin app. */
+internal fun brandTile(packageName: String?): Color =
+    packageName?.let { tileColor(it) } ?: Color(0xFF2E2E33)
+
 /**
  * Color de fondo de la ficha: el de la marca si se conoce, y si no uno estable
  * derivado del paquete. Tonos apagados para que convivan sobre el fondo casi negro
