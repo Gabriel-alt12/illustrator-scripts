@@ -43,7 +43,7 @@ class SceneRunnerTest {
             listOf(
                 "input keyevent KEYCODE_POWER",
                 LaunchApp("com.netflix.mediaclient").shell,
-                "media volume --stream 3 --set 8",
+                SetVolume(8).shell,
             ),
             ejecutados,
         )
