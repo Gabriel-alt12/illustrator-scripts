@@ -10,6 +10,12 @@
     <!-- Para que el mando de invitados siga escuchando con la pantalla apagada. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <!-- El despertador de la tele: una alarma de reloj exacta, la unica que Android
+         promete disparar a su hora con el movil en reposo. USE_EXACT_ALARM es la
+         forma para apps de alarmas desde Android 13; en 12 aun se llamaba
+         SCHEDULE_EXACT_ALARM. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
 
     <!--
         Para leer el icono de estas apps y ponerlo en la rejilla. Desde Android 11 hay
@@ -107,6 +113,25 @@
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
                 android:value="Sirve un mando web en la red local de casa mientras hay visita" />
         </service>
+
+        <!-- Cuenta atras del apagado y ejecucion de lo programado por el despertador:
+             hace falta proceso vivo mas alla de los segundos que dura un receiver. -->
+        <service
+            android:name=".system.SleepTimerService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Cuenta atras para apagar la TV y encendido programado" />
+        </service>
+
+        <receiver
+            android:name=".system.WakeAlarmReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.gabriel.tvmando.action.WAKE" />
+            </intent-filter>
+        </receiver>
 
         <service
             android:name=".system.PowerTileService"

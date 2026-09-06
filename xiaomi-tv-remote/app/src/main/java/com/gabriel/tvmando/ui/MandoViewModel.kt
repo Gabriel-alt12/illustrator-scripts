@@ -9,6 +9,7 @@ import com.gabriel.tvmando.AppContainer
 import com.gabriel.tvmando.data.SettingsRepository
 import com.gabriel.tvmando.data.ThemeMode
 import com.gabriel.tvmando.data.TvSettings
+import com.gabriel.tvmando.data.WakeSchedule
 import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.ConnectionState
 import com.gabriel.tvmando.domain.ForceStopApp
@@ -36,6 +37,7 @@ import com.gabriel.tvmando.domain.TvStatus
 import com.gabriel.tvmando.domain.decodeScreenshot
 import com.gabriel.tvmando.system.GuestRemoteServer
 import com.gabriel.tvmando.system.GuestRemoteState
+import com.gabriel.tvmando.system.SleepTimerService
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -474,6 +476,14 @@ class MandoViewModel(
         sceneProgress.value = null
         refreshStatus()
     }
+
+    // --- temporizadores -----------------------------------------------------
+
+    /** Cuenta atras del apagado, si la hay. La lleva el servicio; aqui solo se mira. */
+    val sleepDeadline: StateFlow<Long?> = SleepTimerService.deadline
+
+    val wakeSchedule: StateFlow<WakeSchedule?> = settings.wakeSchedule
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     // --- accesos directos ---------------------------------------------------
 

@@ -91,6 +91,8 @@ import com.gabriel.tvmando.domain.PressKey
 import com.gabriel.tvmando.domain.Shortcut
 import com.gabriel.tvmando.domain.TvKey
 import com.gabriel.tvmando.system.HomeShortcuts
+import com.gabriel.tvmando.system.SleepTimerService
+import com.gabriel.tvmando.system.WakeAlarms
 import com.gabriel.tvmando.ui.apps.AppsScreen
 import com.gabriel.tvmando.ui.apps.ShortcutDraft
 import com.gabriel.tvmando.ui.apps.ShortcutMenuSheet
@@ -102,6 +104,7 @@ import com.gabriel.tvmando.ui.components.NavBarItem
 import com.gabriel.tvmando.ui.components.Tap
 import com.gabriel.tvmando.ui.components.rememberHaptics
 import com.gabriel.tvmando.ui.remote.RemoteScreen
+import com.gabriel.tvmando.ui.remote.TimersSheet
 import com.gabriel.tvmando.system.GuestRemoteService
 import com.gabriel.tvmando.system.GuestRemoteState
 import com.gabriel.tvmando.system.MandoNotification
@@ -143,6 +146,8 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     val diagnostics by viewModel.diagnostics.collectAsStateWithLifecycle()
     val shortcuts by viewModel.shortcuts.collectAsStateWithLifecycle()
     val pendingShare by viewModel.pendingShare.collectAsStateWithLifecycle()
+    val sleepDeadline by viewModel.sleepDeadline.collectAsStateWithLifecycle()
+    val wakeSchedule by viewModel.wakeSchedule.collectAsStateWithLifecycle()
     val haptics = rememberHaptics()
 
     var destination by rememberSaveable { mutableStateOf(Destination.REMOTE) }
@@ -151,6 +156,7 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
     var showNowPlaying by rememberSaveable { mutableStateOf(false) }
     var shortcutDraft by remember { mutableStateOf<ShortcutDraft?>(null) }
     var shortcutMenu by remember { mutableStateOf<Shortcut?>(null) }
+    var showTimers by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val askNotifications = rememberLauncherForActivityResult(
@@ -276,6 +282,10 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                     onVolumeLevel = { level ->
                         haptics(Tap.Press)
                         viewModel.setVolumeLevel(level)
+                    },
+                    onPowerLongPress = {
+                        haptics(Tap.Confirm)
+                        showTimers = true
                     },
                 )
 
@@ -408,6 +418,41 @@ fun MandoApp(viewModel: MandoViewModel, modifier: Modifier = Modifier) {
                 onDismiss = { showNowPlaying = false },
             )
         }
+    }
+
+    if (showTimers) {
+        TimersSheet(
+            sleepDeadline = sleepDeadline,
+            wake = wakeSchedule,
+            scenes = scenesState.scenes,
+            onSleep = { minutes ->
+                haptics(Tap.Confirm)
+                SleepTimerService.start(context, minutes)
+                viewModel.notify("La TV se apagara dentro de $minutes min")
+                showTimers = false
+            },
+            onCancelSleep = {
+                SleepTimerService.cancel(context)
+                viewModel.notify("Apagado cancelado")
+            },
+            onWake = { hour, minute, sceneId ->
+                haptics(Tap.Confirm)
+                val exact = WakeAlarms.schedule(context, WakeAlarms.nextOccurrence(hour, minute), sceneId)
+                viewModel.notify(
+                    if (exact) {
+                        "Encendido programado"
+                    } else {
+                        "Programado, pero Android no permite alarmas exactas: puede retrasarse unos minutos"
+                    },
+                )
+                showTimers = false
+            },
+            onCancelWake = {
+                WakeAlarms.cancel(context)
+                viewModel.notify("Encendido cancelado")
+            },
+            onDismiss = { showTimers = false },
+        )
     }
 
     shortcutDraft?.let { draft ->

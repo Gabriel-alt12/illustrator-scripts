@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.gabriel.tvmando.domain.Scene
@@ -34,6 +35,9 @@ data class TvSettings(
         const val DEFAULT_PORT = 5555
     }
 }
+
+/** Encendido programado: cuando y con que escena (null = solo encender). */
+data class WakeSchedule(val at: Long, val sceneId: String?)
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "tvmando")
 
@@ -100,6 +104,27 @@ class SettingsRepository(private val context: Context) {
     /** Vuelve a las tres escenas de la especificacion. */
     suspend fun restoreDefaultScenes() {
         context.dataStore.edit { prefs -> prefs.remove(KEY_SCENES) }
+    }
+
+    // --- despertador --------------------------------------------------------
+
+    /** Lo programado, o null; lo que ya paso de hora no cuenta. */
+    val wakeSchedule: Flow<WakeSchedule?> = context.dataStore.data.map { prefs ->
+        prefs[KEY_WAKE_AT]
+            ?.takeIf { it > System.currentTimeMillis() }
+            ?.let { WakeSchedule(at = it, sceneId = prefs[KEY_WAKE_SCENE]) }
+    }
+
+    suspend fun setWakeSchedule(at: Long?, sceneId: String?) {
+        context.dataStore.edit { prefs ->
+            if (at == null) {
+                prefs.remove(KEY_WAKE_AT)
+                prefs.remove(KEY_WAKE_SCENE)
+            } else {
+                prefs[KEY_WAKE_AT] = at
+                if (sceneId == null) prefs.remove(KEY_WAKE_SCENE) else prefs[KEY_WAKE_SCENE] = sceneId
+            }
+        }
     }
 
     // --- accesos directos ---------------------------------------------------
@@ -214,6 +239,8 @@ class SettingsRepository(private val context: Context) {
         val KEY_SEARCH_HISTORY = stringPreferencesKey("search_history")
         val KEY_FAVORITES = stringPreferencesKey("favorite_apps")
         val KEY_SHORTCUTS = stringPreferencesKey("shortcuts")
+        val KEY_WAKE_AT = longPreferencesKey("wake_at")
+        val KEY_WAKE_SCENE = stringPreferencesKey("wake_scene")
         val KEY_FAST_TYPING = stringPreferencesKey("fast_typing_targets")
         val KEY_PORT = intPreferencesKey("tv_port")
         val KEY_MODEL = stringPreferencesKey("tv_model")
