@@ -91,9 +91,9 @@ object AppCatalog {
      *
      * Por ADB no hay forma barata de traerse el icono desde el televisor (haria falta
      * aapt alli), pero muchas de estas apps estan tambien en el movil, y de ahi si se
-     * puede leer. Casi todas usan el mismo paquete en los dos sitios; las que no,
-     * estan aqui. Lo que no se encuentre se queda con su monograma, que tampoco pasa
-     * nada.
+     * puede leer; y es tambien el paquete que tiene ficha publica en la Play Store,
+     * de donde se descarga el icono si en el movil no esta. Casi todas usan el mismo
+     * paquete en los dos sitios; las que no, estan aqui.
      */
     private val PHONE_PACKAGES: Map<String, String> = mapOf(
         "com.netflix.ninja" to "com.netflix.mediaclient",

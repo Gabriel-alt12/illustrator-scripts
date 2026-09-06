@@ -1,6 +1,5 @@
 package com.gabriel.tvmando.ui.components
 
-import android.content.Context
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -33,15 +32,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.unit.sp
+import com.gabriel.tvmando.data.AppIconStore
 import com.gabriel.tvmando.domain.AppCatalog
 import com.gabriel.tvmando.domain.TvApp
 import com.gabriel.tvmando.ui.theme.Chalk
@@ -54,10 +52,11 @@ import com.gabriel.tvmando.ui.theme.Radius
 /**
  * Ficha de una app instalada en la TV.
  *
- * El icono no se puede traer del televisor por ADB, asi que se busca la misma app en
- * el movil y se usa el suyo. Cuando no esta instalada aqui, queda un monograma sobre
- * el color de la marca (o uno estable derivado del paquete, si tampoco se conoce): la
- * misma app cae siempre en el mismo color y la rejilla se reconoce de un vistazo.
+ * El icono no se puede traer del televisor por ADB: sale del movil, de una descarga
+ * anterior o de la Play Store, en ese orden (ver [AppIconStore]). Si no hay forma,
+ * el nombre entero hace de logotipo sobre el color de la marca (o uno estable
+ * derivado del paquete, si tampoco se conoce): la misma app cae siempre en el mismo
+ * color y la rejilla se reconoce de un vistazo.
  *
  * Pulsacion larga = forzar el cierre, como pide la seccion 7 de la especificacion.
  * La estrella de la esquina fija la app arriba en la rejilla.
@@ -79,7 +78,7 @@ fun AppTile(
     // un drawable, y con la rejilla llena serian veinte de esas en la misma pasada de
     // composicion, justo al abrir la pestana.
     val icon by produceState<ImageBitmap?>(null, app.packageName) {
-        value = withContext(Dispatchers.IO) { phoneIcon(context, app.packageName) }
+        value = AppIconStore.load(context, app.packageName)
     }
     val press = rememberPress()
     val ember = Ember
@@ -124,10 +123,23 @@ fun AppTile(
                         .padding(14.dp),
                 )
             } else {
+                // Sin icono, el nombre entero hace de logotipo: sobre el color de la
+                // marca se reconoce igual y no parece una ficha rota.
                 Text(
-                    text = monogram(app.displayName),
-                    style = MaterialTheme.typography.displaySmall,
-                    color = Chalk,
+                    text = app.displayName.uppercase(),
+                    style = MaterialTheme.typography.titleLarge.copy(
+                        fontWeight = FontWeight.ExtraBold,
+                        fontSize = 17.sp,
+                        lineHeight = 19.sp,
+                        letterSpacing = 0.6.sp,
+                    ),
+                    // Fijo y no del tema: el color de marca de debajo es el mismo en
+                    // claro y en oscuro.
+                    color = Color(0xFFF2F3F5),
+                    textAlign = TextAlign.Center,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(horizontal = 10.dp),
                 )
             }
 
@@ -178,48 +190,6 @@ fun AppTile(
         )
     }
 }
-
-/** Una o dos iniciales: "Prime Video" -> "PV", "Netflix" -> "N". */
-private fun monogram(displayName: String): String {
-    val words = displayName.split(' ', '-', '_').filter { it.isNotBlank() }
-    return when {
-        words.isEmpty() -> "?"
-        words.size == 1 -> words[0].take(1).uppercase()
-        else -> (words[0].take(1) + words[1].take(1)).uppercase()
-    }
-}
-
-/**
- * Icono de la misma app instalada en el movil, o null si no esta.
- *
- * Todo va envuelto porque aqui puede fallar de varias formas (app desinstalada a
- * mitad, icono ilegible, paquete no declarado en `<queries>`) y ninguna merece
- * tumbar la rejilla: sin icono se pinta el monograma y ya.
- */
-private fun phoneIcon(context: Context, tvPackage: String): ImageBitmap? =
-    iconCache.getOrPut(tvPackage) {
-        runCatching {
-            val phonePackage = AppCatalog.phonePackageFor(tvPackage)
-                ?: return@runCatching null
-            context.packageManager
-                .getApplicationIcon(phonePackage)
-                .toBitmap(ICON_PX, ICON_PX)
-                .asImageBitmap()
-        }.getOrNull() ?: Missing
-    }.takeIf { it !== Missing }
-
-/**
- * Iconos ya resueltos, para no repetir la lectura cada vez que una ficha vuelve a
- * componerse (al escribir en el filtro se recomponen todas). Guarda tambien las
- * ausencias: preguntar por una app que no esta cuesta lo mismo que por una que si.
- */
-private val iconCache = java.util.concurrent.ConcurrentHashMap<String, ImageBitmap>()
-
-/** Marca de "aqui no hay icono", para poder cachear tambien eso. */
-private val Missing: ImageBitmap = ImageBitmap(1, 1)
-
-/** Lado del icono en pixeles: de sobra para una ficha de la rejilla. */
-private const val ICON_PX = 144
 
 /**
  * Color de fondo de la ficha: el de la marca si se conoce, y si no uno estable
